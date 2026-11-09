@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Farm Local Console - ตัวอย่างหน้าเว็บสำหรับคู่มือ</title>
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif; }
+    body { background:#0f172a; color:#f8fafc; padding:16px; line-height: 1.5; }
+    .container { max-width:960px; margin:0 auto; }
+    h1 { text-align:center; font-size:24px; color:#38bdf8; margin-bottom:16px; }
+    .card { background:#1e293b; border-radius:12px; padding:18px; margin-bottom:16px; border:1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); }
+    .card-title { font-size:18px; font-weight:bold; color:#94a3b8; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
+    .box { background:#0f172a; border-radius:8px; padding:12px; border:1px solid #334155; margin-bottom:8px; }
+    .lbl { font-size:12px; color:#94a3b8; font-weight: 500; }
+    .val { font-size:22px; font-weight:bold; color:#38bdf8; margin:4px 0; }
+    .badge { font-size:11px; padding:3px 8px; border-radius:12px; font-weight:bold; }
+    .badge-ok { background:#065f46; color:#34d399; }
+    .badge-err { background:#7f1d1d; color:#f87171; }
+    .badge-warn { background:#78350f; color:#fcd34d; }
+    .btn { padding:8px 14px; border-radius:6px; border:none; font-weight:bold; cursor:pointer; margin:4px 2px; font-size: 13px; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+    .btn-green { background:#22c55e; color:white; }
+    .btn-gray { background:#475569; color:white; }
+    .btn-red { background:#ef4444; color:white; }
+    .btn-blue { background:#0284c7; color:white; }
+    input, select { width:100%; padding:8px 10px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:white; margin:4px 0 10px 0; font-size: 14px; }
+    input:focus, select:focus { outline: 1px solid #38bdf8; border-color: #38bdf8; }
+    .tab { overflow:hidden; border-bottom:1px solid #334155; margin-bottom:14px; display: flex; flex-wrap: wrap; }
+    .tab button { background:inherit; border:none; outline:none; cursor:pointer; padding:10px 18px; color:#94a3b8; font-weight:bold; font-size: 14px; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .tab button:hover { color: #f8fafc; }
+    .tab button.active { color:#38bdf8; border-bottom:2px solid #38bdf8; }
+    .tabcontent { display:none; }
+    .guide-box { background:#1e1b4b; border-left:4px solid #818cf8; padding:10px 14px; font-size:12px; border-radius:4px; margin-bottom:12px; color:#c7d2fe; line-height:1.6; }
+    .alert-box { background:#7f1d1d; border-left:4px solid #ef4444; padding:12px 14px; font-size:13px; border-radius:6px; margin-bottom:14px; color:#fecaca; }
+    .demo-banner { background: #0369a1; color: #e0f2fe; padding: 8px 14px; border-radius: 6px; font-size: 12px; margin-bottom: 14px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="demo-banner">📖 เอกสารตัวอย่างหน้าควบคุม Web Console (HTML Example สำหรับนำไปใช้จัดทำคู่มือ)</div>
+    <h1>🌱 Smart Farm 2 แปลง (Control Console)</h1>
+
+    <!-- แถบเมนูนำทาง (Navigation Tabs) -->
+    <div class="tab">
+      <button class="tablinks active" onclick="openTab(event, 'Dashboard')">📊 Dashboard & Manual</button>
+      <button class="tablinks" onclick="openTab(event, 'GrowthStages')">🌾 Crop & Soil Presets</button>
+      <button class="tablinks" onclick="openTab(event, 'Network')">⚙️ Network & Security</button>
+      <button class="tablinks" onclick="openTab(event, 'Logs')">📋 System Logs</button>
+    </div>
+
+    <!-- ==================== TAB 1: DASHBOARD & MANUAL ==================== -->
+    <div id="Dashboard" class="tabcontent" style="display:block;">
+      
+      <!-- สวิตช์ควบคุมหลัก (Master Enable) -->
+      <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div><b>ระบบหลัก (Master Enable): </b><span class="badge badge-ok">เปิดทำงาน</span></div>
+        <form method="POST" action="/cmd" style="display:inline;" onsubmit="return false;">
+          <input type="hidden" name="master" value="0">
+          <button type="submit" class="btn btn-red">ปิด Master</button>
+        </form>
+      </div>
+
+      <div class="grid">
+        
+        <!-- การ์ดแปลงซ้าย (Zone Left) -->
+        <div class="card">
+          <div class="card-title">
+            <span>🌿 แปลงซ้าย (Zone Left)</span>
+            <span class="badge badge-ok">ONLINE</span>
+          </div>
+
+          <div class="box">
+            <div class="lbl">ความชื้นดิน</div>
+            <div class="val">46.5 %</div>
+          </div>
+
+          <div class="box">
+            <div class="lbl">อุณหภูมิดิน</div>
+            <div class="val">28.4 °C</div>
+          </div>
+
+          <div class="box">
+            <div class="lbl">สถานะการรด / DAP</div>
+            <div class="val" style="font-size:16px;">💧 WATERING | DAP: 18 วัน (Stage 2)</div>
+          </div>
+
+          <div class="box">
+            <div class="lbl">เลือกระยะการเติบโต (Active Stage)</div>
+            <form method="POST" action="/cmd" style="display:flex; gap:6px; align-items:center; margin-top:4px;" onsubmit="return false;">
+              <input type="hidden" name="zone" value="0">
+              <select name="stage" style="margin:0; padding:6px;">
+                <option value="0">🚫 ไม่ได้ปลูก (พักแปลง / ยังไม่ลงพืช)</option>
+                <option value="1">ระยะ 1: ตั้งตัว/ต้นกล้า</option>
+                <option value="2" selected>ระยะ 2: เจริญเติบโต</option>
+                <option value="3">ระยะ 3: ออกดอก/ผล</option>
+                <option value="4">ระยะ 4: เก็บเกี่ยว/สุกแก่</option>
+              </select>
+              <button type="submit" class="btn btn-blue" style="margin:0; padding:6px 12px; font-size:12px;">เลือก</button>
+            </form>
+          </div>
+
+          <div class="box">
+            <div class="lbl">เวลารดสะสมวันนี้</div>
+            <div style="font-size:14px; color:#cbd5e1;">14 / 45 นาที</div>
+          </div>
+
+          <p style="margin:10px 0;">โหมด: <b>AUTO</b></p>
+          <div style="display:flex; gap:4px;">
+            <form method="POST" action="/cmd" style="display:inline;" onsubmit="return false;"><input type="hidden" name="zone" value="0"><input type="hidden" name="mode" value="1"><button type="submit" class="btn btn-blue">Auto</button></form>
+            <form method="POST" action="/cmd" style="display:inline;" onsubmit="return false;"><input type="hidden" name="zone" value="0"><input type="hidden" name="mode" value="2"><button type="submit" class="btn btn-gray">Manual</button></form>
+            <form method="POST" action="/cmd" style="display:inline;" onsubmit="return false;"><input type="hidden" name="zone" value="0"><input type="hidden" name="mode" value="0"><button type="submit" class="btn btn-red">Off</button></form>
+          </div>
+
+          <!-- เมนูปุ่มเปิด/ปิดวาล์วเมื่ออยู่ในโหมด Manual -->
+          <div style="margin-top:10px; padding-top:8px; border-top:1px solid #334155;">
+            <form method="POST" action="/cmd" onsubmit="return false;">
+              <input type="hidden" name="zone" value="0"><input type="hidden" name="valve" value="0">
+              <button type="submit" class="btn btn-red" style="width:100%;">🔴 ปิดวาล์วซ้าย (CH1)</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- การ์ดแปลงขวา (Zone Right) -->
+        <div class="card">
+          <div class="card-title">
+            <span>🌿 แปลงขวา (Zone Right)</span>
+            <span class="badge badge-ok">ONLINE</span>
+          </div>
+
+          <div class="box">
+            <div class="lbl">ความชื้นดิน</div>
+            <div class="val">54.2 %</div>
+          </div>
+
+          <div class="box">
+            <div class="lbl">อุณหภูมิดิน</div>
+            <div class="val">27.9 °C</div>
+          </div>
+
+          <div class="box">
+            <div class="lbl">สถานะการรด / DAP</div>
+            <div class="val" style="font-size:16px;">⏳ SOAKING | DAP: 18 วัน (Stage 2)</div>
+          </div>
+
+          <div class="box">
+            <div class="lbl">เลือกระยะการเติบโต (Active Stage)</div>
+            <form method="POST" action="/cmd" style="display:flex; gap:6px; align-items:center; margin-top:4px;" onsubmit="return false;">
+              <input type="hidden" name="zone" value="1">
+              <select name="stage" style="margin:0; padding:6px;">
+                <option value="0">🚫 ไม่ได้ปลูก (พักแปลง / ยังไม่ลงพืช)</option>
+                <option value="1">ระยะ 1: ตั้งตัว/ต้นกล้า</option>
+                <option value="2" selected>ระยะ 2: เจริญเติบโต</option>
+                <option value="3">ระยะ 3: ออกดอก/ผล</option>
+                <option value="4">ระยะ 4: เก็บเกี่ยว/สุกแก่</option>
+              </select>
+              <button type="submit" class="btn btn-blue" style="margin:0; padding:6px 12px; font-size:12px;">เลือก</button>
+            </form>
+          </div>
+
+          <div class="box">
+            <div class="lbl">เวลารดสะสมวันนี้</div>
+            <div style="font-size:14px; color:#cbd5e1;">8 / 45 นาที</div>
+          </div>
+
+          <p style="margin:10px 0;">โหมด: <b>AUTO</b></p>
+          <div style="display:flex; gap:4px;">
+            <form method="POST" action="/cmd" style="display:inline;" onsubmit="return false;"><input type="hidden" name="zone" value="1"><input type="hidden" name="mode" value="1"><button type="submit" class="btn btn-blue">Auto</button></form>
+            <form method="POST" action="/cmd" style="display:inline;" onsubmit="return false;"><input type="hidden" name="zone" value="1"><input type="hidden" name="mode" value="2"><button type="submit" class="btn btn-gray">Manual</button></form>
+            <form method="POST" action="/cmd" style="display:inline;" onsubmit="return false;"><input type="hidden" name="zone" value="1"><input type="hidden" name="mode" value="0"><button type="submit" class="btn btn-red">Off</button></form>
+          </div>
+
+          <!-- เมนูปุ่มเปิด/ปิดวาล์วเมื่ออยู่ในโหมด Manual -->
+          <div style="margin-top:10px; padding-top:8px; border-top:1px solid #334155;">
+            <form method="POST" action="/cmd" onsubmit="return false;">
+              <input type="hidden" name="zone" value="1"><input type="hidden" name="valve" value="1">
+              <button type="submit" class="btn btn-green" style="width:100%;">🟢 เปิดวาล์วขวา (CH2)</button>
+            </form>
+          </div>
+        </div>
+
+      </div> <!-- end grid -->
+
+      <!-- ควบคุมรีเลย์ทั่วไป CH3 - CH8 -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-title">
+          ⚡ ควบคุมรีเลย์ทั่วไป (CH3 - CH8) 
+          <span style="font-size:12px; font-weight:normal; color:#64748b;">*CH1 และ CH2 สงวนเฉพาะวาล์วแปลง 1-2</span>
+        </div>
+        <div>
+          <button type="button" class="btn btn-green">CH 3: ON</button>
+          <button type="button" class="btn btn-gray">CH 4: OFF</button>
+          <button type="button" class="btn btn-gray">CH 5: OFF</button>
+          <button type="button" class="btn btn-gray">CH 6: OFF</button>
+          <button type="button" class="btn btn-gray">CH 7: OFF</button>
+          <button type="button" class="btn btn-gray">CH 8: OFF</button>
+        </div>
+      </div>
+
+    </div> <!-- end Tab 1 -->
+
+
+    <!-- ==================== TAB 2: GROWTH STAGES & PRESETS ==================== -->
+    <div id="GrowthStages" class="tabcontent">
+      <form method="POST" action="/saveStages" onsubmit="return false;">
+        <div class="card">
+          <div class="card-title">🌾 โปรไฟล์ดินและกลุ่มพืช (Soil & Crop Presets)</div>
+          <div class="guide-box">
+            💡 <b>คำแนะนำ:</b> เลือกชนิดดินและกลุ่มพืช ระบบจะคำนวณเกณฑ์ Low, High, Critical และจังหวะรดน้ำให้อัตโนมัติ หรือเลือก <b>กำหนดเอง (Custom)</b> เพื่อระบุตัวเลขอิสระ
+          </div>
+
+          <!-- การตั้งค่าแปลงซ้าย -->
+          <h3 style="color:#38bdf8; margin:16px 0 8px 0; border-bottom:1px solid #334155; padding-bottom:4px;">🌿 แปลงซ้าย (Zone Left)</h3>
+          
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label class="lbl">1. ชนิดดินในแปลง (Soil Preset)</label>
+              <select name="L_soil" id="L_soil" onchange="applyPresets('L_')">
+                <option value="0">ดินร่วนปนทราย (Sandy Loam)</option>
+                <option value="1" selected>ดินร่วนมาตรฐาน (Loam)</option>
+                <option value="2">ดินเหนียว / ร่วนเหนียว (Clay Loam)</option>
+                <option value="3">วัสดุปลูก / ขุยมะพร้าว (Cocopeat)</option>
+                <option value="4">กำหนดเองอิสระ (Custom)</option>
+              </select>
+            </div>
+            <div>
+              <label class="lbl">2. กลุ่มพืช (Crop Group)</label>
+              <select name="L_crop" id="L_crop" onchange="applyPresets('L_')">
+                <option value="0" selected>ผักกินใบและผักสวนครัวทั่วไป</option>
+                <option value="1">พืชตระกูลมะเขือและพริก</option>
+                <option value="2">พืชเถาเลื้อยและพืชผล (เมล่อน/แตง)</option>
+                <option value="3">สมุนไพรและผักกลิ่นแรง</option>
+                <option value="4">กำหนดเองอิสระ (Custom)</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="lbl">ชื่อพืช</label>
+          <input type="text" name="L_name" value="ผักสลัด / กรีนโอ๊ค">
+
+          <div style="display:grid; grid-template-columns:2fr 1fr; gap:10px;">
+            <div>
+              <label class="lbl">วันที่เริ่มปลูก (YYYY-MM-DD)</label>
+              <input type="text" name="L_date" value="2026-10-21">
+            </div>
+            <div>
+              <label class="lbl">DAP Offset (วัน)</label>
+              <input type="number" name="L_offset" value="0">
+            </div>
+          </div>
+          <div style="text-align:right; margin:-4px 0 10px 0;">
+            <button type="button" class="btn btn-blue" style="font-size:12px; padding:6px 12px;" onclick="alert('จำลองการเริ่มรอบปลูกใหม่: วันที่เริ่มถูกตั้งเป็นวันนี้ และ DAP รีเซ็ตเป็น 0 วัน')">🌱 เริ่มรอบปลูกใหม่วันนี้ (Reset DAP = 0)</button>
+          </div>
+
+          <!-- เกณฑ์หลัก / Overrides แปลงซ้าย -->
+          <div style="background:#0f172a; padding:10px; border-radius:6px; margin:8px 0; border:1px solid #334155;">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8; margin-bottom:6px;">เกณฑ์หลัก / Override ทั่วไป</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:6px;">
+              <div><label class="lbl">เริ่มรด (Low %)</label><input type="number" step="0.1" name="L_low" id="L_low" value="42.0"></div>
+              <div><label class="lbl">หยุดรด (High %)</label><input type="number" step="0.1" name="L_high" id="L_high" value="60.0"></div>
+              <div><label class="lbl">วิกฤต (Crit %)</label><input type="number" step="0.1" name="L_crit" id="L_crit" value="22.0"></div>
+              <div><label class="lbl">Pulse (นาที)</label><input type="number" name="L_pulse" id="L_pulse" value="2"></div>
+              <div><label class="lbl">Soak (นาที)</label><input type="number" name="L_soak" id="L_soak" value="8"></div>
+              <div><label class="lbl">Max Daily (นาที)</label><input type="number" name="L_maxDaily" id="L_maxDaily" value="40"></div>
+              <div><label class="lbl">เตือน Temp (°C)</label><input type="number" step="0.1" name="L_maxTemp" id="L_maxTemp" value="35.0"></div>
+              <div><label class="lbl">ตัด Manual (นาที)</label><input type="number" name="L_manualCut" id="L_manualCut" value="10"></div>
+            </div>
+          </div>
+
+          <label class="lbl">การใช้ระบบ 4 ช่วงอายุ (Growth Stages)</label>
+          <select name="L_useStages">
+            <option value="0">ปิด (ใช้ค่าคงที่ด้านบนตลอดรอบปลูก)</option>
+            <option value="1" selected>เปิดใช้งาน 4 Stages อัตโนมัติตามอายุ DAP</option>
+          </select>
+
+          <!-- 4 Stages แปลงซ้าย -->
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 1: ตั้งตัว / ต้นกล้า</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="L_s0_dap" id="L_s0_dap" value="10"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="L_s0_low" id="L_s0_low" value="47.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="L_s0_high" id="L_s0_high" value="60.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="L_s0_pulse" id="L_s0_pulse" value="2"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="L_s0_soak" id="L_s0_soak" value="8"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="L_s0_maxDaily" id="L_s0_maxDaily" value="30"></div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 2: ลำต้น / เจริญเติบโต</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="L_s1_dap" id="L_s1_dap" value="25"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="L_s1_low" id="L_s1_low" value="45.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="L_s1_high" id="L_s1_high" value="60.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="L_s1_pulse" id="L_s1_pulse" value="2"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="L_s1_soak" id="L_s1_soak" value="8"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="L_s1_maxDaily" id="L_s1_maxDaily" value="45"></div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 3: แตกยอด / สะสมอาหาร</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="L_s2_dap" id="L_s2_dap" value="40"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="L_s2_low" id="L_s2_low" value="42.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="L_s2_high" id="L_s2_high" value="60.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="L_s2_pulse" id="L_s2_pulse" value="3"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="L_s2_soak" id="L_s2_soak" value="8"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="L_s2_maxDaily" id="L_s2_maxDaily" value="50"></div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 4: เก็บเกี่ยว / เข้าสู่ตลาด</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="L_s3_dap" id="L_s3_dap" value="50"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="L_s3_low" id="L_s3_low" value="42.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="L_s3_high" id="L_s3_high" value="60.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="L_s3_pulse" id="L_s3_pulse" value="2"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="L_s3_soak" id="L_s3_soak" value="8"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="L_s3_maxDaily" id="L_s3_maxDaily" value="40"></div>
+            </div>
+          </div>
+
+          <!-- การตั้งค่าแปลงขวา -->
+          <h3 style="color:#38bdf8; margin:24px 0 8px 0; border-bottom:1px solid #334155; padding-bottom:4px;">🌿 แปลงขวา (Zone Right)</h3>
+          
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div>
+              <label class="lbl">1. ชนิดดินในแปลง (Soil Preset)</label>
+              <select name="R_soil" id="R_soil" onchange="applyPresets('R_')">
+                <option value="0">ดินร่วนปนทราย (Sandy Loam)</option>
+                <option value="1" selected>ดินร่วนมาตรฐาน (Loam)</option>
+                <option value="2">ดินเหนียว / ร่วนเหนียว (Clay Loam)</option>
+                <option value="3">วัสดุปลูก / ขุยมะพร้าว (Cocopeat)</option>
+                <option value="4">กำหนดเองอิสระ (Custom)</option>
+              </select>
+            </div>
+            <div>
+              <label class="lbl">2. กลุ่มพืช (Crop Group)</label>
+              <select name="R_crop" id="R_crop" onchange="applyPresets('R_')">
+                <option value="0">ผักกินใบและผักสวนครัวทั่วไป</option>
+                <option value="1" selected>พืชตระกูลมะเขือและพริก</option>
+                <option value="2">พืชเถาเลื้อยและพืชผล (เมล่อน/แตง)</option>
+                <option value="3">สมุนไพรและผักกลิ่นแรง</option>
+                <option value="4">กำหนดเองอิสระ (Custom)</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="lbl">ชื่อพืช</label>
+          <input type="text" name="R_name" value="พริกขี้หนูสวน">
+
+          <div style="display:grid; grid-template-columns:2fr 1fr; gap:10px;">
+            <div>
+              <label class="lbl">วันที่เริ่มปลูก (YYYY-MM-DD)</label>
+              <input type="text" name="R_date" value="2026-10-21">
+            </div>
+            <div>
+              <label class="lbl">DAP Offset (วัน)</label>
+              <input type="number" name="R_offset" value="0">
+            </div>
+          </div>
+          <div style="text-align:right; margin:-4px 0 10px 0;">
+            <button type="button" class="btn btn-blue" style="font-size:12px; padding:6px 12px;" onclick="alert('จำลองการเริ่มรอบปลูกใหม่: วันที่เริ่มถูกตั้งเป็นวันนี้ และ DAP รีเซ็ตเป็น 0 วัน')">🌱 เริ่มรอบปลูกใหม่วันนี้ (Reset DAP = 0)</button>
+          </div>
+
+          <!-- เกณฑ์หลัก / Overrides แปลงขวา -->
+          <div style="background:#0f172a; padding:10px; border-radius:6px; margin:8px 0; border:1px solid #334155;">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8; margin-bottom:6px;">เกณฑ์หลัก / Override ทั่วไป</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:6px;">
+              <div><label class="lbl">เริ่มรด (Low %)</label><input type="number" step="0.1" name="R_low" id="R_low" value="42.0"></div>
+              <div><label class="lbl">หยุดรด (High %)</label><input type="number" step="0.1" name="R_high" id="R_high" value="60.0"></div>
+              <div><label class="lbl">วิกฤต (Crit %)</label><input type="number" step="0.1" name="R_crit" id="R_crit" value="22.0"></div>
+              <div><label class="lbl">Pulse (นาที)</label><input type="number" name="R_pulse" id="R_pulse" value="3"></div>
+              <div><label class="lbl">Soak (นาที)</label><input type="number" name="R_soak" id="R_soak" value="10"></div>
+              <div><label class="lbl">Max Daily (นาที)</label><input type="number" name="R_maxDaily" id="R_maxDaily" value="60"></div>
+              <div><label class="lbl">เตือน Temp (°C)</label><input type="number" step="0.1" name="R_maxTemp" id="R_maxTemp" value="36.0"></div>
+              <div><label class="lbl">ตัด Manual (นาที)</label><input type="number" name="R_manualCut" id="R_manualCut" value="15"></div>
+            </div>
+          </div>
+
+          <label class="lbl">การใช้ระบบ 4 ช่วงอายุ (Growth Stages)</label>
+          <select name="R_useStages">
+            <option value="0">ปิด (ใช้ค่าคงที่ด้านบนตลอดรอบปลูก)</option>
+            <option value="1" selected>เปิดใช้งาน 4 Stages อัตโนมัติตามอายุ DAP</option>
+          </select>
+
+          <!-- 4 Stages แปลงขวา -->
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 1: ตั้งตัว / ต้นกล้า</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="R_s0_dap" id="R_s0_dap" value="15"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="R_s0_low" id="R_s0_low" value="47.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="R_s0_high" id="R_s0_high" value="60.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="R_s0_pulse" id="R_s0_pulse" value="2"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="R_s0_soak" id="R_s0_soak" value="10"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="R_s0_maxDaily" id="R_s0_maxDaily" value="40"></div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 2: ลำต้น / เจริญเติบโต</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="R_s1_dap" id="R_s1_dap" value="45"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="R_s1_low" id="R_s1_low" value="42.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="R_s1_high" id="R_s1_high" value="60.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="R_s1_pulse" id="R_s1_pulse" value="3"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="R_s1_soak" id="R_s1_soak" value="10"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="R_s1_maxDaily" id="R_s1_maxDaily" value="60"></div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 3: ออกดอก / ติดผล</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="R_s2_dap" id="R_s2_dap" value="85"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="R_s2_low" id="R_s2_low" value="42.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="R_s2_high" id="R_s2_high" value="63.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="R_s2_pulse" id="R_s2_pulse" value="4"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="R_s2_soak" id="R_s2_soak" value="12"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="R_s2_maxDaily" id="R_s2_maxDaily" value="80"></div>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="lbl" style="font-weight:bold; color:#38bdf8;">ระยะที่ 4: สุกแก่ / เก็บเกี่ยว</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px;">
+              <div><label class="lbl">ถึง DAP</label><input type="number" name="R_s3_dap" id="R_s3_dap" value="120"></div>
+              <div><label class="lbl">Low %</label><input type="number" step="0.1" name="R_s3_low" id="R_s3_low" value="39.0"></div>
+              <div><label class="lbl">High %</label><input type="number" step="0.1" name="R_s3_high" id="R_s3_high" value="58.0"></div>
+              <div><label class="lbl">Pulse (น.)</label><input type="number" name="R_s3_pulse" id="R_s3_pulse" value="3"></div>
+              <div><label class="lbl">Soak (น.)</label><input type="number" name="R_s3_soak" id="R_s3_soak" value="10"></div>
+              <div><label class="lbl">Max Daily (น.)</label><input type="number" name="R_s3_maxDaily" id="R_s3_maxDaily" value="50"></div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-green" style="width:100%; margin-top:10px;">💾 บันทึกโปรไฟล์พืชและ Stages</button>
+        </div>
+      </form>
+    </div> <!-- end Tab 2 -->
+
+
+    <!-- ==================== TAB 3: NETWORK & SECURITY ==================== -->
+    <div id="Network" class="tabcontent">
+      <form method="POST" action="/saveNetwork" onsubmit="return false;">
+        <div class="card">
+          <div class="card-title">⚙️ ตั้งค่าเครือข่าย & Blynk Auth Token</div>
+          
+          <label class="lbl">Wi-Fi SSID (ชื่อ Wi-Fi ที่บ้าน)</label>
+          <input type="text" name="ssid" value="MyHome_Farm_2.4G">
+
+          <label class="lbl">Wi-Fi Password (รหัสผ่าน Wi-Fi บ้าน)</label>
+          <input type="password" name="pass" placeholder="(ไม่เปลี่ยน)">
+
+          <label class="lbl">AP Wi-Fi Password (รหัส Wi-Fi Hotspot ของบอร์ด อย่างน้อย 8 ตัวอักษร)</label>
+          <input type="password" name="ap_pass" placeholder="(ไม่เปลี่ยน, ค่าเริ่มต้น farm123456)">
+
+          <label class="lbl">Blynk Device Auth Token</label>
+          <input type="password" name="auth" placeholder="(ไม่เปลี่ยน)">
+
+          <div class="card-title" style="margin-top:20px;">🔒 ความปลอดภัยของ Web Portal</div>
+          
+          <label class="lbl">Username (HTTP Basic Auth)</label>
+          <input type="text" name="admin_user" value="admin" readonly style="color:#64748b;">
+
+          <label class="lbl">รหัสผ่านใหม่สำหรับ Admin</label>
+          <input type="password" name="admin_pass" placeholder="(ไม่เปลี่ยน)">
+
+          <label class="lbl">ยืนยันรหัสผ่านใหม่</label>
+          <input type="password" name="admin_pass_confirm" placeholder="(ไม่เปลี่ยน)">
+
+          <button type="submit" class="btn btn-green" style="width:100%; margin-top:10px;">💾 บันทึกการตั้งค่าและรีสตาร์ท</button>
+        </div>
+      </form>
+
+      <!-- Factory Reset -->
+      <div class="card" style="border-color:#7f1d1d;">
+        <div class="card-title" style="color:#f87171;">⚠️ Factory Reset</div>
+        <p style="font-size:13px; color:#94a3b8; margin-bottom:10px;">ล้างการตั้งค่าทั้งหมดกลับเป็นค่าเริ่มต้นโรงงาน</p>
+        <form method="POST" action="/factoryReset" onsubmit="return confirm('ยืนยันล้างการตั้งค่าทั้งหมดกลับสู่ค่าเริ่มต้นโรงงานหรือไม่?')">
+          <button type="submit" class="btn btn-red">Factory Reset</button>
+        </form>
+      </div>
+    </div> <!-- end Tab 3 -->
+
+    <!-- ==================== TAB 4: SYSTEM LOGS ==================== -->
+    <div id="Logs" class="tabcontent">
+      <div class="card">
+        <div class="card-title"><span>📋 บันทึกประวัติการทำงาน (System Debug Logs)</span></div>
+        <div class="guide-box">
+          💡 <b>บันทึกประวัติการทำงาน 2 วัน:</b> บันทึกลง Flash อัตโนมัติทุก 1 ชั่วโมง และบันทึกทันทีเมื่อเปิด/ปิดวาล์วหรือเกิดเหตุขัดข้อง สามารถดาวน์โหลดเป็นไฟล์ .txt มาเก็บไว้ดูในคอมพิวเตอร์ได้
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; background:#0f172a; padding:12px; border-radius:8px; border:1px solid #334155;">
+          <div>
+            <span class="lbl">ขนาด Log ใน Flash: </span>
+            <b style="color:#38bdf8; font-size:16px;">18.5 KB</b> 
+            <span style="font-size:12px; color:#64748b;">(หมุนเวียนอัตโนมัติสูงสุด 150 KB)</span>
+          </div>
+          <div>
+            <a href="/downloadLog" class="btn btn-green" style="text-decoration:none; display:inline-block; font-size:13px;">📥 ดาวน์โหลด Log (.txt)</a>
+            <button type="button" class="btn btn-blue" onclick="location.reload()" style="font-size:13px;">🔄 รีเฟรชหน้าจอ</button>
+            <form method="POST" action="/clearLog" onsubmit="return confirm('ยืนยันล้างประวัติ Log ทั้งหมดในเครื่องหรือไม่?')" style="display:inline;">
+              <button type="submit" class="btn btn-red" style="font-size:13px;">🗑️ ล้างไฟล์ Log</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="lbl" style="margin-bottom:6px;">ตัวอย่างบันทึกล่าสุด (Recent Log View):</div>
+        <pre style="background:#020617; border:1px solid #334155; border-radius:8px; padding:12px; color:#38bdf8; font-family:monospace; font-size:12px; white-space:pre-wrap; word-break:break-all; max-height:360px; overflow-y:auto; line-height:1.4;">[2026-11-09 00:00:01] [RESET] Midnight transition detected: 2026-11-09
+[2026-11-09 00:00:01] [RESET] Daily watering runtimes reset to 0 for new day
+[2026-11-09 06:00:00] [STATUS] Left: 41.2%, 27.5 C [IDLE, DAP:12, Run:0m] | Right: 43.8%, 27.8 C [IDLE, DAP:12, Run:0m] | Heap: 184512 B
+[2026-11-09 07:15:22] [VALVE] Left Zone AUTO watering started (Hum: 39.8% &lt; Low: 42.0%, Pulse: 3m, Target: 60.0%)
+[2026-11-09 07:18:22] [VALVE] Left Zone pulse #1 (3m) ended. Valve CLOSED, SOAK 10m started.
+[2026-11-09 07:28:22] [VALVE] Left Zone starting pulse #2 (Hum: 48.5% &lt; High: 60.0%). Valve OPENED.
+[2026-11-09 07:31:22] [VALVE] Left Zone pulse #2 (3m) ended. Valve CLOSED, SOAK 10m started.
+[2026-11-09 07:41:22] [VALVE] Left Zone reached high target (61.2% &gt;= 60.0%). Valve CLOSED.
+[2026-11-09 07:41:22] [INFO] Left Zone watering cycle completed successfully (Hum: 61.2%).
+[2026-11-09 08:00:00] [STATUS] Left: 60.5%, 28.2 C [IDLE, DAP:12, Run:6m] | Right: 42.1%, 28.4 C [IDLE, DAP:12, Run:0m] | Heap: 183980 B
+[2026-11-09 08:30:15] [SENSOR] Zone Right (ID: 2) restored ONLINE (Hum: 42.1%, Temp: 28.4 C)</pre>
+      </div>
+    </div> <!-- end Tab 4 -->
+
+  </div> <!-- end container -->
+
+  <!-- JavaScript ควบคุมการสลับแท็บและการคำนวณ Preset แบบ Real-time -->
+  <script>
+    function openTab(evt, tabName) {
+      var i, tabcontent, tablinks;
+      tabcontent = document.getElementsByClassName("tabcontent");
+      for (i = 0; i < tabcontent.length; i++) tabcontent[i].style.display = "none";
+      tablinks = document.getElementsByClassName("tablinks");
+      for (i = 0; i < tablinks.length; i++) tablinks[i].className = tablinks[i].className.replace(" active", "");
+      document.getElementById(tabName).style.display = "block";
+      evt.currentTarget.className += " active";
+    }
+
+    const soilData = {
+      0: { low: 30.0, high: 45.0, crit: 15.0 }, // Sandy Loam
+      1: { low: 42.0, high: 60.0, crit: 22.0 }, // Loam
+      2: { low: 52.0, high: 70.0, crit: 32.0 }, // Clay Loam
+      3: { low: 55.0, high: 75.0, crit: 35.0 }  // Cocopeat
+    };
+
+    function applyPresets(prefix) {
+      const sType = parseInt(document.getElementById(prefix + 'soil').value);
+      const cType = parseInt(document.getElementById(prefix + 'crop').value);
+
+      if (sType !== 4 && soilData[sType]) {
+        let bLow = soilData[sType].low;
+        let bHigh = soilData[sType].high;
+        let bCrit = soilData[sType].crit;
+
+        document.getElementById(prefix + 'low').value = bLow.toFixed(1);
+        document.getElementById(prefix + 'high').value = bHigh.toFixed(1);
+        document.getElementById(prefix + 'crit').value = bCrit.toFixed(1);
+
+        if (cType === 0) { // Leafy
+          setStage(prefix, 0, 10, bLow + 5, bHigh, 2, 8, 30);
+          setStage(prefix, 1, 25, bLow + 3, bHigh, 2, 8, 45);
+          setStage(prefix, 2, 40, bLow, bHigh, 3, 8, 50);
+          setStage(prefix, 3, 50, bLow, bHigh, 2, 8, 40);
+          document.getElementById(prefix + 'pulse').value = 2;
+          document.getElementById(prefix + 'soak').value = 8;
+          document.getElementById(prefix + 'maxDaily').value = 40;
+          document.getElementById(prefix + 'maxTemp').value = 35.0;
+          document.getElementById(prefix + 'manualCut').value = 10;
+        } else if (cType === 1) { // Solanaceae
+          setStage(prefix, 0, 15, bLow + 5, bHigh, 2, 10, 40);
+          setStage(prefix, 1, 45, bLow, bHigh, 3, 10, 60);
+          setStage(prefix, 2, 85, bLow, bHigh + 3, 4, 12, 80);
+          setStage(prefix, 3, 120, bLow - 3, bHigh - 2, 3, 10, 50);
+          document.getElementById(prefix + 'pulse').value = 3;
+          document.getElementById(prefix + 'soak').value = 10;
+          document.getElementById(prefix + 'maxDaily').value = 60;
+          document.getElementById(prefix + 'maxTemp').value = 36.0;
+          document.getElementById(prefix + 'manualCut').value = 15;
+        } else if (cType === 2) { // Vine / Cucurbits
+          setStage(prefix, 0, 15, bLow + 5, bHigh, 2, 10, 40);
+          setStage(prefix, 1, 40, bLow, bHigh, 3, 12, 60);
+          setStage(prefix, 2, 70, bLow, bHigh + 5, 4, 15, 90);
+          setStage(prefix, 3, 85, bLow - 8, bHigh - 10, 2, 15, 30);
+          document.getElementById(prefix + 'pulse').value = 3;
+          document.getElementById(prefix + 'soak').value = 12;
+          document.getElementById(prefix + 'maxDaily').value = 70;
+          document.getElementById(prefix + 'maxTemp').value = 36.0;
+          document.getElementById(prefix + 'manualCut').value = 15;
+        } else if (cType === 3) { // Herbs
+          setStage(prefix, 0, 15, bLow + 3, bHigh, 2, 12, 30);
+          setStage(prefix, 1, 45, bLow - 3, bHigh - 3, 2, 15, 35);
+          setStage(prefix, 2, 80, bLow - 5, bHigh - 5, 2, 15, 40);
+          setStage(prefix, 3, 120, bLow - 5, bHigh - 5, 2, 15, 30);
+          document.getElementById(prefix + 'pulse').value = 2;
+          document.getElementById(prefix + 'soak').value = 15;
+          document.getElementById(prefix + 'maxDaily').value = 35;
+          document.getElementById(prefix + 'maxTemp').value = 35.0;
+          document.getElementById(prefix + 'manualCut').value = 10;
+        }
+      }
+    }
+
+    function setStage(prefix, idx, dap, low, high, pulse, soak, maxDaily) {
+      document.getElementById(prefix + 's' + idx + '_dap').value = dap;
+      document.getElementById(prefix + 's' + idx + '_low').value = low.toFixed(1);
+      document.getElementById(prefix + 's' + idx + '_high').value = high.toFixed(1);
+      document.getElementById(prefix + 's' + idx + '_pulse').value = pulse;
+      document.getElementById(prefix + 's' + idx + '_soak').value = soak;
+      document.getElementById(prefix + 's' + idx + '_maxDaily').value = maxDaily;
+    }
+  </script>
+</body>
+</html>

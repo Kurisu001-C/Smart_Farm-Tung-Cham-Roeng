@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Farm</title>
+<style>
+  :root {
+    --bg: #EEF4F1;
+    --card: #FFFFFF;
+    --ink: #13302B;
+    --muted: #5A6E69;
+    --line: #E2EBE7;
+    --teal: #0F6E66;
+    --teal-dark: #0A4F49;
+    --teal-soft: #DDF0EC;
+    --blue: #1D6FD1;
+    --blue-soft: #E4EFFC;
+    --orange: #B9480F;
+    --orange-soft: #FCEBDD;
+    --grey: #8A9A96;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Thai", "Sukhumvit Set", "Thonburi", Roboto, sans-serif;
+    font-size: 14px;
+  }
+  button, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .app { max-width: 480px; margin: 0 auto; padding: 12px 12px 24px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ---------- Header ---------- */
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px; }
+  .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  .header small { display: block; color: var(--muted); font-size: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+  .pill.on { background: var(--teal-soft); color: var(--teal); }
+  .pill.off { background: #E9ECEB; color: #56625F; }
+  .pill.blue { background: var(--blue-soft); color: var(--blue); }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    position: sticky; top: 0; z-index: 5;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+    background: var(--teal-dark); padding: 4px; border-radius: 16px;
+  }
+  .tab { min-height: 44px; border: none; border-radius: 12px; background: transparent; color: #CDE8E3; font-weight: 600; font-size: 14px; }
+  .tab[aria-selected="true"] { background: #FFFFFF; color: var(--teal); }
+
+  .panel { display: flex; flex-direction: column; gap: 12px; }
+  .panel[hidden] { display: none; }
+
+  .card { background: var(--card); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .card-head small { color: var(--muted); font-size: 12px; }
+
+  /* ---------- Switch ---------- */
+  .switch { width: 64px; height: 36px; flex-shrink: 0; border: none; border-radius: 99px; padding: 3px; background: #C3CECB; display: flex; align-items: center; justify-content: flex-start; transition: background .2s; }
+  .switch span { width: 30px; height: 30px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .switch[aria-checked="true"] { background: #B6E36A; justify-content: flex-end; }
+
+  /* ---------- Master card ---------- */
+  .master { flex-direction: row; align-items: center; justify-content: space-between; gap: 14px; transition: background .2s, color .2s; }
+  .master.is-on { background: var(--teal); color: #FFFFFF; }
+  .master-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #E9ECEB; color: #56625F; }
+  .master.is-on .master-icon { background: var(--teal-dark); color: #B6E36A; }
+  .master-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .master-text strong { font-size: 17px; }
+  .master-text small { font-size: 12px; opacity: .85; }
+
+  /* ---------- Range chips ---------- */
+  .chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .chip { min-height: 40px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); color: var(--muted); font-weight: 600; font-size: 13px; }
+  .chip[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-soft); color: var(--teal); }
+
+  /* ---------- Chart ---------- */
+  .now { display: flex; align-items: baseline; gap: 4px; }
+  .now b { font-size: 26px; line-height: 1; color: var(--blue); }
+  .now em { font-style: normal; color: var(--muted); font-size: 13px; }
+  .chart { width: 100%; height: auto; display: block; }
+  .chart text { font-family: inherit; font-size: 10px; fill: var(--grey); }
+  .chart-foot { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+
+  /* ---------- Plot tab ---------- */
+  .plot-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px; }
+  .plot-head h2 { margin: 0; font-size: 20px; font-weight: 700; }
+  .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .metric { background: var(--card); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .metric-top { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .metric-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .metric.hum .metric-ico { background: var(--blue-soft); color: var(--blue); }
+  .metric.temp .metric-ico { background: var(--orange-soft); color: var(--orange); }
+  .metric b { font-size: 32px; line-height: 1; }
+  .metric b em { font-style: normal; font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+  .metric.hum b { color: var(--blue); }
+  .metric.temp b { color: var(--orange); }
+  .meter { height: 8px; border-radius: 99px; background: var(--blue-soft); overflow: hidden; }
+  .meter span { display: block; height: 100%; border-radius: 99px; background: var(--blue); width: 0; transition: width .3s; }
+  .metric small { color: var(--muted); font-size: 12px; }
+
+  /* Valve */
+  .seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; background: var(--bg); border-radius: 14px; padding: 4px; }
+  .seg button { min-height: 42px; border: none; border-radius: 11px; background: transparent; color: var(--muted); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--teal); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .valve-body { display: flex; align-items: center; gap: 14px; background: var(--bg); border-radius: 16px; padding: 12px; }
+  .valve-ico { width: 52px; height: 52px; border-radius: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #DDE3E1; color: #56625F; transition: background .2s; }
+  .valve-body.is-open .valve-ico { background: var(--blue); color: #FFFFFF; }
+  .valve-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .valve-text strong { font-size: 16px; }
+  .valve-text small { color: var(--muted); font-size: 12px; }
+  .note { font-size: 12px; color: var(--orange); background: var(--orange-soft); border-radius: 12px; padding: 8px 12px; }
+  .note[hidden] { display: none; }
+  .switch:disabled, .seg button:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* Stage */
+  .select-wrap { position: relative; }
+  .select-wrap select {
+    width: 100%; min-height: 48px; appearance: none; -webkit-appearance: none;
+    border: 1.5px solid var(--line); border-radius: 14px; background: var(--card);
+    padding: 0 44px 0 14px; font-size: 15px; font-weight: 600; color: var(--ink);
+  }
+  .select-wrap select:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+  .select-wrap svg { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
+  .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; position: relative; }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+  .step-ico { width: 64px; height: 64px; border-radius: 18px; background: #E2F3EE; overflow: hidden; border: 2px solid transparent; opacity: .35; filter: grayscale(.6); transition: all .2s; }
+  .step-ico svg { width: 100%; height: 100%; display: block; }
+  .step span { font-size: 11px; color: var(--muted); line-height: 1.3; }
+  .step.done .step-ico { opacity: .8; filter: none; }
+  .step.current .step-ico { opacity: 1; filter: none; border-color: var(--teal); }
+  .step.current span { color: var(--teal); font-weight: 700; }
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stat { background: var(--teal); color: #FFFFFF; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .stat.alt { background: var(--teal-dark); }
+  .stat small { font-size: 12px; opacity: .9; }
+  .stat b { font-size: 30px; line-height: 1.1; }
+  .stat b em { font-style: normal; font-size: 13px; font-weight: 500; margin-left: 4px; }
+  .stat .sub { font-size: 11px; opacity: .85; }
+  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 12px; border: 2px dashed var(--line); border-radius: 16px; }
+  .empty strong { font-size: 17px; }
+  .empty small { color: var(--muted); font-size: 12px; max-width: 240px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div>
+      <h1>Smart Farm</h1>
+      <small id="updated">กำลังโหลดข้อมูล…</small>
+    </div>
+    <span class="pill off" id="headerPill"><i></i><span id="headerPillText">ระบบปิด</span></span>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="เมนู">
+    <button class="tab" role="tab" data-tab="main" aria-selected="true">หน้าหลัก</button>
+    <button class="tab" role="tab" data-tab="left" aria-selected="false">แปลงซ้าย</button>
+    <button class="tab" role="tab" data-tab="right" aria-selected="false">แปลงขวา</button>
+  </nav>
+
+  <!-- ===================== หน้าหลัก ===================== -->
+  <section class="panel" id="panel-main" role="tabpanel">
+
+    <div class="card master" id="masterCard">
+      <div class="master-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
+      </div>
+      <div class="master-text">
+        <strong id="masterTitle">ระบบปิดอยู่</strong>
+        <small id="masterSub">แตะสวิตช์เพื่อเปิดการทำงานทั้งหมด</small>
+      </div>
+      <button class="switch" id="masterSwitch" role="switch" aria-checked="false" aria-label="เปิดปิดการทำงานทั้งหมด"><span></span></button>
+    </div>
+
+    <div class="chips" role="group" aria-label="ช่วงเวลาของกราฟ">
+      <button class="chip" data-range="1" aria-pressed="true">24 ชม.</button>
+      <button class="chip" data-range="3" aria-pressed="false">3 วัน</button>
+      <button class="chip" data-range="7" aria-pressed="false">7 วัน</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>ความชื้นดิน · แปลงซ้าย</h2>
+          <small>ค่าเฉลี่ยตามช่วงเวลา</small>
+        </div>
+        <div class="now"><b id="nowLeft">–</b><em>%</em></div>
+      </div>
+      <svg class="chart" id="chartLeft" viewBox="0 0 340 170" role="img" aria-label="กราฟความชื้นแปลงซ้าย"></svg>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>ความชื้นดิน · แปลงขวา</h2>
+          <small>ค่าเฉลี่ยตามช่วงเวลา</small>
+        </div>
+        <div class="now"><b id="nowRight">–</b><em>%</em></div>
+      </div>
+      <svg class="chart" id="chartRight" viewBox="0 0 340 170" role="img" aria-label="กราฟความชื้นแปลงขวา"></svg>
+    </div>
+  </section>
+
+  <!-- ===================== หน้าแปลง (ใช้ร่วมกันทั้งซ้ายและขวา) ===================== -->
+  <section class="panel" id="panel-plot" role="tabpanel" hidden>
+
+    <div class="plot-head">
+      <h2 id="plotName">แปลงซ้าย</h2>
+      <span class="pill blue" id="plotModePill"><i></i><span id="plotModeText">Manual</span></span>
+    </div>
+
+    <!-- 1-2 ความชื้น / อุณหภูมิ -->
+    <div class="metrics">
+      <div class="metric hum">
+        <div class="metric-top">
+          <span class="metric-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.7s-6 6.6-6 11a6 6 0 0 0 12 0c0-4.4-6-11-6-11z"/></svg></span>
+          ความชื้นดิน
+        </div>
+        <b><span id="hum">–</span><em>%</em></b>
+        <div class="meter"><span id="humBar"></span></div>
+      </div>
+      <div class="metric temp">
+        <div class="metric-top">
+          <span class="metric-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/></svg></span>
+          อุณหภูมิ
+        </div>
+        <b><span id="temp">–</span><em>°C</em></b>
+        <small id="tempHint">–</small>
+      </div>
+    </div>
+
+    <!-- 3 วาล์ว -->
+    <div class="card">
+      <div class="card-head">
+        <h2>วาล์วน้ำ</h2>
+        <span class="pill off" id="valvePill"><i></i><span id="valvePillText">ปิด</span></span>
+      </div>
+      <div class="seg" role="group" aria-label="โหมดการทำงานของวาล์ว">
+        <button id="modeManual" aria-pressed="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a8 8 0 0 0 16 0v-3a2 2 0 0 0-4 0"/></svg>
+          Manual
+        </button>
+        <button id="modeAuto" aria-pressed="false">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+          Auto
+        </button>
+      </div>
+      <div class="valve-body" id="valveBody">
+        <div class="valve-ico">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.7s-6 6.6-6 11a6 6 0 0 0 12 0c0-4.4-6-11-6-11z"/></svg>
+        </div>
+        <div class="valve-text">
+          <strong id="valveTitle">วาล์วปิดอยู่</strong>
+          <small id="valveSub">แตะสวิตช์เพื่อเปิดน้ำ</small>
+        </div>
+        <button class="switch" id="valveSwitch" role="switch" aria-checked="false" aria-label="เปิดปิดวาล์วน้ำ"><span></span></button>
+      </div>
+      <div class="note" id="masterNote" hidden>ระบบหลักปิดอยู่ เปิดสวิตช์ที่หน้าหลักก่อนจึงจะสั่งวาล์วได้</div>
+    </div>
+
+    <!-- 4-5 ระยะการเจริญเติบโต -->
+    <div class="card">
+      <div class="card-head">
+        <h2>ระยะการเจริญเติบโต</h2>
+      </div>
+      <div class="select-wrap">
+        <label for="stageSelect" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">เลือกระยะการเจริญเติบโต</label>
+        <select id="stageSelect">
+          <option value="0">— ยังไม่ได้ปลูก —</option>
+          <option value="1">ระยะที่ 1 · เพาะเมล็ด</option>
+          <option value="2">ระยะที่ 2 · ต้นอ่อน</option>
+          <option value="3">ระยะที่ 3 · กำลังเติบโต</option>
+          <option value="4">ระยะที่ 4 · พร้อมเก็บเกี่ยว</option>
+        </select>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+
+      <div class="empty" id="stageEmpty">
+        <svg width="56" height="56" viewBox="0 0 128 128" aria-hidden="true"><rect x="8" y="78" width="112" height="34" rx="8" fill="#B89A7A"/><path d="M28 78c6-8 14-8 20 0M58 78c6-8 14-8 20 0M88 78c6-8 14-8 20 0" stroke="#8A6A4B" stroke-width="4" fill="none" stroke-linecap="round"/></svg>
+        <strong>ยังไม่ได้ปลูก</strong>
+        <small>เลือกระยะจากเมนูด้านบนเมื่อเริ่มปลูก ระบบจะเริ่มนับจำนวนวันให้อัตโนมัติ</small>
+      </div>
+
+      <div id="stageInfo" hidden>
+        <div class="steps" id="steps">
+          <div class="step" data-step="1">
+            <div class="step-ico"><svg viewBox="0 0 128 128" aria-hidden="true"><rect x="0" y="96" width="128" height="32" fill="#8A6A4B"/><ellipse cx="64" cy="100" rx="12" ry="7" fill="#D9B98A"/></svg></div>
+            <span>เพาะเมล็ด</span>
+          </div>
+          <div class="step" data-step="2">
+            <div class="step-ico"><svg viewBox="0 0 128 128" aria-hidden="true"><rect x="0" y="96" width="128" height="32" fill="#8A6A4B"/><path d="M64 96V70" stroke="#2E8B57" stroke-width="5" stroke-linecap="round"/><path d="M64 76c-14 0-22-9-22-17 12 0 22 7 22 17zM64 76c14 0 22-9 22-17-12 0-22 7-22 17z" fill="#3FA66B"/></svg></div>
+            <span>ต้นอ่อน</span>
+          </div>
+          <div class="step" data-step="3">
+            <div class="step-ico"><svg viewBox="0 0 128 128" aria-hidden="true"><rect x="0" y="96" width="128" height="32" fill="#8A6A4B"/><path d="M64 96V36" stroke="#2E8B57" stroke-width="5" stroke-linecap="round"/><path d="M64 84c-18 0-28-10-28-21 15 0 28 8 28 21zM64 66c18 0 28-10 28-21-15 0-28 8-28 21zM64 48c-13 0-20-8-20-15 11 0 20 6 20 15z" fill="#3FA66B"/></svg></div>
+            <span>กำลังเติบโต</span>
+          </div>
+          <div class="step" data-step="4">
+            <div class="step-ico"><svg viewBox="0 0 128 128" aria-hidden="true"><rect x="0" y="96" width="128" height="32" fill="#8A6A4B"/><path d="M64 96V34" stroke="#2E8B57" stroke-width="5" stroke-linecap="round"/><path d="M64 84c-18 0-28-10-28-21 15 0 28 8 28 21zM64 66c18 0 28-10 28-21-15 0-28 8-28 21z" fill="#3FA66B"/><circle cx="48" cy="40" r="10" fill="#D9472B"/><circle cx="80" cy="36" r="10" fill="#D9472B"/><circle cx="64" cy="24" r="9" fill="#D9472B"/></svg></div>
+            <span>พร้อมเก็บเกี่ยว</span>
+          </div>
+        </div>
+
+        <div class="stats" style="margin-top: 14px">
+          <div class="stat">
+            <small>ปลูกมาแล้ว</small>
+            <b><span id="days">–</span><em>วัน</em></b>
+            <span class="sub" id="plantDateText">–</span>
+          </div>
+          <div class="stat alt">
+            <small>รดน้ำสะสมวันนี้</small>
+            <b><span id="hours">–</span><em>นาที</em></b>
+            <span class="sub" id="hoursSub">รวมเวลาเปิดวาล์ววันนี้</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* =================================================================
+   ลำดับ Datastream ในหน้าตั้งค่า Blynk Web Page Widget (index 0 - 14)
+   ในหน้าตั้งค่าวิดเจ็ตบน Blynk App / Web Dashboard
+   ให้กดปุ่ม "+ Datastream" และเลือก Datastreams ตามลำดับนี้:
+
+   index  ชื่อ Datastream            V-Pin   ชนิด      คำอธิบาย
+     0    Master                    V0      Integer   สวิตช์หลัก (0=ปิด, 1=เปิด)
+   ---- โซนซ้าย (Left Zone) ----
+     1    Humidity_L                V1      Double    ความชื้นดิน (%)
+     2    Temp_L                    V2      Double    อุณหภูมิดิน (°C)
+     3    Valve_L                   V5      Integer   สถานะวาล์วซ้าย (0=ปิด, 1=เปิด)
+     4    Mode_L                    V4      Integer   โหมดรดน้ำ (1=Auto, 2=Manual)
+     5    Stage_L                   V16     Integer   ระยะการปลูก (0=ยังไม่ปลูก, 1..4)
+     6    DAP_L                     V6      Integer   อายุพืช/วันปลูกจริงจาก RTC (วัน)
+     7    DailyTime_L               V7      Integer   เวลารดน้ำสะสมวันนี้ (นาที)
+   ---- โซนขวา (Right Zone) ----
+     8    Humidity_R                V21     Double    ความชื้นดิน (%)
+     9    Temp_R                    V22     Double    อุณหภูมิดิน (°C)
+    10    Valve_R                   V25     Integer   สถานะวาล์วขวา (0=ปิด, 1=เปิด)
+    11    Mode_R                    V24     Integer   โหมดรดน้ำ (1=Auto, 2=Manual)
+    12    Stage_R                   V36     Integer   ระยะการปลูก (0=ยังไม่ปลูก, 1..4)
+    13    DAP_R                     V26     Integer   อายุพืช/วันปลูกจริงจาก RTC (วัน)
+    14    DailyTime_R               V27     Integer   เวลารดน้ำสะสมวันนี้ (นาที)
+   ================================================================= */
+const DS = {
+  master: 0,
+  left:  { hum: 1, temp: 2, valve: 3, mode: 4, stage: 5, dap: 6, hours: 7 },
+  right: { hum: 8, temp: 9, valve: 10, mode: 11, stage: 12, dap: 13, hours: 14 }
+};
+const PLOT_NAMES = { left: 'แปลงซ้าย', right: 'แปลงขวา' };
+const STAGE_NAMES = ['ยังไม่ได้ปลูก', 'เพาะเมล็ด', 'ต้นอ่อน', 'กำลังเติบโต', 'พร้อมเก็บเกี่ยว'];
+const DAY = 24 * 60 * 60 * 1000;
+
+/* ---------------- Bridge (+ ตัวจำลองไว้ดูหน้าตานอก Blynk) ---------------- */
+const hasBridge = typeof BlynkBridge !== 'undefined';
+const bridge = hasBridge ? new BlynkBridge() : makeStub();
+
+function makeStub() {
+  const demo = ['1', '62', '29.5', '1', '1', '3', '15', '25', '48', '31.2', '0', '1', '0', '0', '0'];
+  return {
+    setCallbacks() {},
+    sendValue() {},
+    getValues: () => Promise.resolve(demo.map((value, index) => ({ index, value, lastUpdated: Date.now() }))),
+    getHistoricalData: (opt) => {
+      const to = opt.to, from = opt.from, n = 60;
+      return Promise.resolve({
+        streams: opt.dataStreams.map(d => ({
+          index: d.index,
+          values: Array.from({ length: n }, (_, i) => {
+            const x = from + (to - from) * i / (n - 1);
+            const base = d.index === 1 ? 58 : 45;
+            return { x, y: base + 12 * Math.sin(i / 5) + 4 * Math.sin(i * 1.7) };
+          })
+        }))
+      });
+    }
+  };
+}
+
+/* ---------------- State ---------------- */
+const values = {};
+let tab = 'main';
+let rangeDays = 1;
+let lastUpdate = null;
+const history = { left: [], right: [] };
+
+const $ = (id) => document.getElementById(id);
+function num(idx) {
+  const v = values[idx];
+  if (v === undefined || v === null || v === '') return null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+function str(idx) { const v = values[idx]; return (v === undefined || v === null) ? '' : String(v).trim(); }
+function fmt(n, d) { return n === null ? '–' : n.toFixed(d); }
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function parseISO(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+function send(idx, value) {
+  values[idx] = String(value);           // อัปเดตหน้าจอทันที
+  render();
+  try { bridge.sendValue(idx, value); } catch (e) { /* ข้อผิดพลาดแจ้งผ่าน onError */ }
+}
+
+/* ---------------- Render ---------------- */
+function render() {
+  const masterOn = num(DS.master) === 1;
+
+  // header + master
+  $('headerPill').className = 'pill ' + (masterOn ? 'on' : 'off');
+  $('headerPillText').textContent = masterOn ? 'ระบบทำงาน' : 'ระบบปิด';
+  $('masterCard').classList.toggle('is-on', masterOn);
+  $('masterSwitch').setAttribute('aria-checked', String(masterOn));
+  $('masterTitle').textContent = masterOn ? 'ระบบทำงานอยู่' : 'ระบบปิดอยู่';
+  $('masterSub').textContent = masterOn ? 'แตะสวิตช์เพื่อหยุดการทำงานทั้งหมด' : 'แตะสวิตช์เพื่อเปิดการทำงานทั้งหมด';
+  if (lastUpdate) {
+    const d = new Date(lastUpdate);
+    $('updated').textContent = 'อัปเดตล่าสุด ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' น.';
+  }
+
+  // tabs
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === tab)));
+  $('panel-main').hidden = tab !== 'main';
+  $('panel-plot').hidden = tab === 'main';
+
+  if (tab === 'main') {
+    $('nowLeft').textContent = fmt(num(DS.left.hum), 0);
+    $('nowRight').textContent = fmt(num(DS.right.hum), 0);
+    drawChart($('chartLeft'), history.left);
+    drawChart($('chartRight'), history.right);
+  } else {
+    renderPlot(tab, masterOn);
+  }
+}
+
+function renderPlot(key, masterOn) {
+  const m = DS[key];
+  $('plotName').textContent = PLOT_NAMES[key];
+
+  // ความชื้น / อุณหภูมิ
+  const hum = num(m.hum), temp = num(m.temp);
+  $('hum').textContent = fmt(hum, 0);
+  $('humBar').style.width = hum === null ? '0' : Math.max(0, Math.min(100, hum)) + '%';
+  $('temp').textContent = fmt(temp, 1);
+  $('tempHint').textContent = temp === null ? '–' : (temp >= 35 ? 'ร้อนมาก' : temp >= 30 ? 'ค่อนข้างร้อน' : temp >= 20 ? 'เหมาะสม' : 'ค่อนข้างเย็น');
+
+  // วาล์ว & โหมด
+  const modeVal = num(m.mode);
+  const isAuto = modeVal === 1;
+  const isManual = modeVal === 2;
+  const open = num(m.valve) === 1;
+
+  $('plotModePill').className = 'pill ' + (isAuto ? 'on' : (isManual ? 'blue' : 'off'));
+  $('plotModeText').textContent = isAuto ? 'Auto' : (isManual ? 'Manual' : 'Off');
+  $('modeManual').setAttribute('aria-pressed', String(isManual));
+  $('modeAuto').setAttribute('aria-pressed', String(isAuto));
+
+  $('valvePill').className = 'pill ' + (open ? 'blue' : 'off');
+  $('valvePillText').textContent = open ? 'เปิด' : 'ปิด';
+  $('valveBody').classList.toggle('is-open', open);
+  $('valveTitle').textContent = open ? 'วาล์วเปิดอยู่' : 'วาล์วปิดอยู่';
+  $('valveSub').textContent = isAuto
+    ? 'โหมด Auto: ระบบเปิด-ปิดน้ำตามความชื้นดินอัตโนมัติ'
+    : (open ? 'แตะสวิตช์เพื่อปิดน้ำ' : 'แตะสวิตช์เพื่อเปิดน้ำ');
+  $('valveSwitch').setAttribute('aria-checked', String(open));
+  $('valveSwitch').hidden = isAuto;
+  $('valveSwitch').disabled = !masterOn;
+  $('modeManual').disabled = !masterOn;
+  $('modeAuto').disabled = !masterOn;
+  $('masterNote').hidden = masterOn;
+
+  // ระยะการเจริญเติบโต (0 = ยังไม่ปลูก, 1..4 = ระยะต่างๆ)
+  let stage = num(m.stage);
+  stage = stage === null ? 0 : Math.max(0, Math.min(4, Math.round(stage)));
+  if (document.activeElement !== $('stageSelect')) $('stageSelect').value = String(stage);
+  $('stageEmpty').hidden = stage !== 0;
+  $('stageInfo').hidden = stage === 0;
+  document.querySelectorAll('#steps .step').forEach(el => {
+    const s = Number(el.dataset.step);
+    el.classList.toggle('done', stage > 0 && s < stage);
+    el.classList.toggle('current', stage > 0 && s === stage);
+  });
+
+  // อายุพืช (DAP) จริงจาก RTC บน ESP32
+  if (stage === 0) {
+    $('days').textContent = '–';
+    $('plantDateText').textContent = 'ยังไม่ได้ปลูก (พักแปลง)';
+  } else {
+    const dapVal = num(m.dap);
+    $('days').textContent = (dapVal !== null && dapVal >= 0) ? String(dapVal) : '0';
+    $('plantDateText').textContent = 'อายุพืชปัจจุบัน (DAP)';
+  }
+
+  // เวลารดน้ำสะสมวันนี้ (นาที)
+  const timeVal = num(m.hours);
+  $('hours').textContent = (timeVal !== null) ? String(Math.round(timeVal)) : '0';
+}
+
+/* ---------------- กราฟ (วาดด้วย SVG ไม่ต้องใช้ไลบรารี) ---------------- */
+const NS = 'http://www.w3.org/2000/svg';
+function el(name, attrs, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function drawChart(svg, points) {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const W = 340, H = 170, L = 30, R = 8, T = 10, B = 24;
+  const to = Date.now(), from = to - rangeDays * DAY;
+  const x = t => L + (t - from) / (to - from) * (W - L - R);
+  const y = v => T + (1 - v / 100) * (H - T - B);
+
+  // เส้นตาราง 0/25/50/75/100
+  [0, 25, 50, 75, 100].forEach(v => {
+    svg.appendChild(el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: '#E2EBE7', 'stroke-width': 1 }));
+    svg.appendChild(el('text', { x: L - 6, y: y(v) + 3, 'text-anchor': 'end' }, String(v)));
+  });
+
+  // ป้ายแกนเวลา
+  const ticks = [];
+  if (rangeDays === 1) {
+    const d = new Date(from); d.setMinutes(0, 0, 0);
+    d.setHours(Math.ceil(d.getHours() / 6) * 6);
+    for (let t = d.getTime(); t <= to; t += 6 * 3600 * 1000) {
+      ticks.push([t, String(new Date(t).getHours()).padStart(2, '0') + ':00']);
+    }
+  } else {
+    const d = new Date(from); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1);
+    for (let t = d.getTime(); t <= to; t += DAY) {
+      const dd = new Date(t);
+      ticks.push([t, dd.getDate() + '/' + (dd.getMonth() + 1)]);
+    }
+  }
+  ticks.forEach(([t, label]) => {
+    svg.appendChild(el('line', { x1: x(t), x2: x(t), y1: H - B, y2: H - B + 4, stroke: '#C9D6D1' }));
+    svg.appendChild(el('text', { x: x(t), y: H - 6, 'text-anchor': 'middle' }, label));
+  });
+
+  const pts = points.filter(p => p.x >= from && p.x <= to && Number.isFinite(p.y)).sort((a, b) => a.x - b.x);
+  if (pts.length < 2) {
+    svg.appendChild(el('text', { x: (W + L) / 2, y: H / 2, 'text-anchor': 'middle', style: 'font-size:12px' }, 'ยังไม่มีข้อมูลในช่วงนี้'));
+    return;
+  }
+  const clamp = v => Math.max(0, Math.min(100, v));
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + x(p.x).toFixed(1) + ' ' + y(clamp(p.y)).toFixed(1)).join(' ');
+  const area = line + ' L' + x(pts[pts.length - 1].x).toFixed(1) + ' ' + y(0) + ' L' + x(pts[0].x).toFixed(1) + ' ' + y(0) + ' Z';
+  svg.appendChild(el('path', { d: area, fill: '#1D6FD1', 'fill-opacity': 0.12 }));
+  svg.appendChild(el('path', { d: line, fill: 'none', stroke: '#1D6FD1', 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  const last = pts[pts.length - 1];
+  svg.appendChild(el('circle', { cx: x(last.x), cy: y(clamp(last.y)), r: 4, fill: '#FFFFFF', stroke: '#1D6FD1', 'stroke-width': 2.2 }));
+}
+
+function loadHistory() {
+  if (typeof bridge.getHistoricalData !== 'function') return;
+  const to = Date.now(), from = to - rangeDays * DAY;
+  bridge.getHistoricalData({
+    period: 'CUSTOM', from, to,
+    dataStreams: [{ index: DS.left.hum, sourceType: 'AVG' }, { index: DS.right.hum, sourceType: 'AVG' }]
+  }).then(res => {
+    (res && res.streams || []).forEach(s => {
+      const pts = (s.values || []).map(p => ({ x: Number(p.x), y: parseFloat(p.y) }));
+      if (s.index === DS.left.hum) history.left = pts;
+      if (s.index === DS.right.hum) history.right = pts;
+    });
+    render();
+  }).catch(() => render());
+}
+
+/* ---------------- Events ---------------- */
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { tab = t.dataset.tab; render(); }));
+
+$('masterSwitch').addEventListener('click', () => send(DS.master, num(DS.master) === 1 ? 0 : 1));
+
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+  rangeDays = Number(c.dataset.range);
+  document.querySelectorAll('.chip').forEach(o => o.setAttribute('aria-pressed', String(o === c)));
+  render();
+  loadHistory();
+}));
+
+$('modeManual').addEventListener('click', () => { 
+  if (tab !== 'main') send(DS[tab].mode, 2); // 2 = MODE_MANUAL (ห้ามส่ง 0 เพราะ 0 คือ MODE_OFF)
+});
+$('modeAuto').addEventListener('click', () => { 
+  if (tab !== 'main') send(DS[tab].mode, 1); // 1 = MODE_AUTO
+});
+$('valveSwitch').addEventListener('click', () => {
+  if (tab === 'main') return;
+  const m = DS[tab];
+  send(m.valve, num(m.valve) === 1 ? 0 : 1);
+});
+
+$('stageSelect').addEventListener('change', (e) => {
+  if (tab === 'main') return;
+  const m = DS[tab];
+  const next = Number(e.target.value);
+  send(m.stage, next); // ส่ง 0=ยังไม่ปลูก, 1..4=ระยะต่างๆ
+  e.target.blur();
+});
+
+/* ---------------- Connect ---------------- */
+function store(v) {
+  if (!v || typeof v.index !== 'number') return;
+  values[v.index] = v.value;
+  if (v.lastUpdated && (!lastUpdate || v.lastUpdated > lastUpdate)) lastUpdate = v.lastUpdated;
+  // ต่อจุดใหม่เข้ากราฟแบบสด
+  const n = parseFloat(v.value);
+  if (Number.isFinite(n)) {
+    if (v.index === DS.left.hum) history.left.push({ x: v.lastUpdated || Date.now(), y: n });
+    if (v.index === DS.right.hum) history.right.push({ x: v.lastUpdated || Date.now(), y: n });
+  }
+}
+
+bridge.setCallbacks({
+  onValueUpdated: (v) => { store(v); render(); },
+  onError: () => {}
+});
+
+bridge.getValues()
+  .then(list => { (list || []).forEach(v => v && store(v)); render(); loadHistory(); })
+  .catch(() => { render(); loadHistory(); });
+
+setInterval(loadHistory, 5 * 60 * 1000);   // ดึงกราฟใหม่ทุก 5 นาที
+render();
+</script>
+</body>
+</html>

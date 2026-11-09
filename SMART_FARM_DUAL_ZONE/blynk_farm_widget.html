@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Smart Farm Dual Zone - Blynk Custom Widget</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(22, 30, 49, 0.85);
+      --card-border: rgba(56, 189, 248, 0.2);
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --primary: #38bdf8;
+      --accent-green: #22c55e;
+      --accent-blue: #0ea5e9;
+      --accent-warn: #eab308;
+      --accent-red: #ef4444;
+      --accent-purple: #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif; }
+    
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      padding: 8px;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Container */
+    .widget-container {
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Header Bar */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 6px;
+      font-size: 11px;
+      color: var(--text-sub);
+    }
+    .header-title {
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Dual Cards Grid */
+    .dual-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    /* Farm Zone Card */
+    .zone-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 12px;
+      position: relative;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .zone-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .zone-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.2px;
+    }
+
+    /* Status Badge */
+    .status-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 10px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .badge-watering { background: rgba(14, 165, 233, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); }
+    .badge-soaking { background: rgba(168, 85, 247, 0.25); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.5); }
+    .badge-idle { background: rgba(71, 85, 105, 0.3); color: #94a3b8; border: 1px solid #475569; }
+    .badge-fault { background: rgba(239, 68, 68, 0.3); color: #f87171; border: 1px solid #ef4444; }
+
+    /* Moisture Hero Display */
+    .moisture-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+      margin: 2px 0;
+    }
+    .moisture-val {
+      font-size: 32px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .moisture-unit {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .moisture-bar-bg {
+      width: 100%;
+      height: 5px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+    .moisture-bar-fill {
+      height: 100%;
+      width: 45%;
+      border-radius: 3px;
+      transition: width 0.6s ease, background 0.4s ease;
+      background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+    }
+
+    /* Sub Data Rows */
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-sub);
+    }
+    .info-highlight {
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    /* Stage Pill */
+    .stage-pill {
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(56, 189, 248, 0.12);
+      color: #7dd3fc;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      margin-top: 4px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Footer Meta Card */
+    .footer-card {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 10px;
+      padding: 6px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #64748b;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* Token Config Modal (if no token in URL) */
+    #tokenPrompt {
+      display: none;
+      background: #1e293b;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #38bdf8;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    #tokenPrompt input {
+      width: 100%;
+      padding: 6px;
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: white;
+      border-radius: 4px;
+      margin: 6px 0;
+    }
+    #tokenPrompt button {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="widget-container">
+    
+    <!-- Token Setup Banner (จะแสดงเฉพาะเมื่อยังไม่ใส่ ?token= ใน URL) -->
+    <div id="tokenPrompt">
+      <b>🔑 กำหนด Blynk Auth Token:</b>
+      <p style="color:#94a3b8; font-size:11px;">ใส่ Token ของท่านเพื่อดึงค่าจริงจากบอร์ด ESP32 หรือใส่ต่อท้าย URL เช่น <code>?token=xxxx</code></p>
+      <input type="text" id="manualToken" placeholder="วาง Blynk Device Auth Token ที่นี่...">
+      <button onclick="saveManualToken()">เชื่อมต่อ Blynk</button>
+    </div>
+
+    <!-- Header Bar -->
+    <div class="header-bar">
+      <div class="header-title">
+        <span>🌱 Smart Farm Dual Zone</span>
+      </div>
+      <div class="sync-status">
+        <div class="pulse-dot" id="liveDot"></div>
+        <span id="syncText">เชื่อมต่อสด</span>
+      </div>
+    </div>
+
+    <!-- Dual Cards Grid (แปลงซ้าย vs แปลงขวา) -->
+    <div class="dual-grid">
+
+      <!-- แปลงซ้าย (Zone Left) -->
+      <div class="zone-card" id="cardL">
+        <div class="zone-header">
+          <span class="zone-name">🌿 แปลงซ้าย</span>
+          <span class="status-badge badge-idle" id="badgeL">IDLE</span>
+        </div>
+
+        <div class="moisture-wrap">
+          <span class="moisture-val" id="humL">--.-</span>
+          <span class="moisture-unit">%</span>
+        </div>
+
+        <div class="moisture-bar-bg">
+          <div class="moisture-bar-fill" id="barL"></div>
+        </div>
+
+        <div class="info-row">
+          <span>🌡️ อุณหภูมิดิน</span>
+          <span class="info-highlight" id="tempL">--.- °C</span>
+        </div>
+
+        <div class="info-row">
+          <span>📅 อายุพืช (DAP)</span>
+          <span class="info-highlight" id="dapL">-- วัน</span>
+        </div>
+
+        <div class="info-row">
+          <span>💧 รดวันนี้</span>
+          <span class="info-highlight" id="dailyL">-- / 40 น.</span>
+        </div>
+
+        <div class="stage-pill" id="stageL">ระยะที่ --</div>
+      </div>
+
+      <!-- แปลงขวา (Zone Right) -->
+      <div class="zone-card" id="cardR">
+        <div class="zone-header">
+          <span class="zone-name">🌿 แปลงขวา</span>
+          <span class="status-badge badge-idle" id="badgeR">IDLE</span>
+        </div>
+
+        <div class="moisture-wrap">
+          <span class="moisture-val" id="humR">--.-</span>
+          <span class="moisture-unit">%</span>
+        </div>
+
+        <div class="moisture-bar-bg">
+          <div class="moisture-bar-fill" id="barR"></div>
+        </div>
+
+        <div class="info-row">
+          <span>🌡️ อุณหภูมิดิน</span>
+          <span class="info-highlight" id="tempR">--.- °C</span>
+        </div>
+
+        <div class="info-row">
+          <span>📅 อายุพืช (DAP)</span>
+          <span class="info-highlight" id="dapR">-- วัน</span>
+        </div>
+
+        <div class="info-row">
+          <span>💧 รดวันนี้</span>
+          <span class="info-highlight" id="dailyR">-- / 60 น.</span>
+        </div>
+
+        <div class="stage-pill" id="stageR">ระยะที่ --</div>
+      </div>
+
+    </div> <!-- end dual-grid -->
+
+    <!-- Footer Status -->
+    <div class="footer-card">
+      <span id="masterText">สวิตช์หลัก: เปิดใช้งาน</span>
+      <span id="quotaText">โควตาวันนี้: -- / 2400</span>
+    </div>
+
+  </div> <!-- end container -->
+
+  <script>
+    // 1. ดึง Token จาก URL เช่น ?token=xxxxxxxx หรือจาก LocalStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    let token = urlParams.get('token') || localStorage.getItem('blynk_token');
+
+    const stageNames = {
+      1: "ระยะ 1: ตั้งตัว/ต้นกล้า",
+      2: "ระยะ 2: เจริญเติบโต",
+      3: "ระยะ 3: ดอกและผล",
+      4: "ระยะ 4: สุกแก่/เก็บเกี่ยว"
+    };
+
+    if (!token) {
+      document.getElementById('tokenPrompt').style.display = 'block';
+    } else {
+      document.getElementById('tokenPrompt').style.display = 'none';
+      startPolling();
+    }
+
+    function saveManualToken() {
+      const val = document.getElementById('manualToken').value.trim();
+      if (val.length >= 20) {
+        token = val;
+        localStorage.setItem('blynk_token', token);
+        document.getElementById('tokenPrompt').style.display = 'none';
+        startPolling();
+      } else {
+        alert('กรุณากรอก Blynk Auth Token ให้ถูกต้อง');
+      }
+    }
+
+    function updateBadge(elId, state) {
+      const badge = document.getElementById(elId);
+      badge.className = 'status-badge';
+      state = (state || 'IDLE').toUpperCase();
+      badge.innerText = state;
+      if (state.includes('WATER')) badge.classList.add('badge-watering');
+      else if (state.includes('SOAK')) badge.classList.add('badge-soaking');
+      else if (state.includes('FAULT')) badge.classList.add('badge-fault');
+      else badge.classList.add('badge-idle');
+    }
+
+    function updateMoistureBar(barId, val) {
+      const bar = document.getElementById(barId);
+      const hum = Math.min(Math.max(parseFloat(val) || 0, 0), 100);
+      bar.style.width = hum + '%';
+      if (hum < 30) bar.style.background = 'linear-gradient(90deg, #ef4444, #f97316)'; // แดง-ส้ม แห้งจัด
+      else if (hum > 75) bar.style.background = 'linear-gradient(90deg, #3b82f6, #6366f1)'; // น้ำเงิน แฉะ
+      else bar.style.background = 'linear-gradient(90deg, #10b981, #38bdf8)'; // เขียว-ฟ้า พอดี
+    }
+
+    // 2. ดึงค่าสดจาก Blynk REST API (รวมทุก Virtual Pins ใน Request เดียว)
+    async function fetchBlynkData() {
+      if (!token) return;
+
+      // รายการ Virtual Pins ทั้งหมด
+      // V0: Master, V1: Hum_L, V2: Temp_L, V3: State_L, V6: DAP_L, V7: Daily_L, V16: Stage_L
+      // V21: Hum_R, V22: Temp_R, V23: State_R, V26: DAP_R, V27: Daily_R, V36: Stage_R, V50: MsgQuota
+      const pins = "V0&V1&V2&V3&V6&V7&V16&V21&V22&V23&V26&V27&V36&V50";
+      const apiURL = `https://blynk.cloud/external/api/get?token=${token}&${pins}`;
+
+      try {
+        const res = await fetch(apiURL);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        // แปลงซ้าย (Zone Left)
+        if (data.V1 !== undefined) {
+          document.getElementById('humL').innerText = parseFloat(data.V1).toFixed(1);
+          updateMoistureBar('barL', data.V1);
+        }
+        if (data.V2 !== undefined) document.getElementById('tempL').innerText = parseFloat(data.V2).toFixed(1) + ' °C';
+        if (data.V3 !== undefined) updateBadge('badgeL', data.V3);
+        if (data.V6 !== undefined) document.getElementById('dapL').innerText = data.V6 + ' วัน';
+        if (data.V7 !== undefined) document.getElementById('dailyL').innerText = data.V7 + ' / 40 น.';
+        if (data.V16 !== undefined) document.getElementById('stageL').innerText = stageNames[data.V16] || ('ระยะที่ ' + data.V16);
+
+        // แปลงขวา (Zone Right)
+        if (data.V21 !== undefined) {
+          document.getElementById('humR').innerText = parseFloat(data.V21).toFixed(1);
+          updateMoistureBar('barR', data.V21);
+        }
+        if (data.V22 !== undefined) document.getElementById('tempR').innerText = parseFloat(data.V22).toFixed(1) + ' °C';
+        if (data.V23 !== undefined) updateBadge('badgeR', data.V23);
+        if (data.V26 !== undefined) document.getElementById('dapR').innerText = data.V26 + ' วัน';
+        if (data.V27 !== undefined) document.getElementById('dailyR').innerText = data.V27 + ' / 60 น.';
+        if (data.V36 !== undefined) document.getElementById('stageR').innerText = stageNames[data.V36] || ('ระยะที่ ' + data.V36);
+
+        // Footer Meta
+        if (data.V0 !== undefined) {
+          document.getElementById('masterText').innerText = data.V0 == 1 ? "สวิตช์หลัก: เปิดใช้งาน" : "สวิตช์หลัก: ปิดพักระบบ";
+        }
+        if (data.V50 !== undefined) {
+          document.getElementById('quotaText').innerText = `โควตาวันนี้: ${data.V50} / 2400`;
+        }
+
+        // Live Indicator
+        document.getElementById('liveDot').style.background = 'var(--accent-green)';
+        document.getElementById('syncText').innerText = 'อัปเดต ' + new Date().toLocaleTimeString('th-TH');
+
+      } catch (err) {
+        document.getElementById('liveDot').style.background = 'var(--accent-red)';
+        document.getElementById('syncText').innerText = 'การเชื่อมต่อขัดข้อง';
+      }
+    }
+
+    function startPolling() {
+      fetchBlynkData();
+      setInterval(fetchBlynkData, 4000); // ดึงค่าทุก 4 วินาที
+    }
+  </script>
+</body>
+</html>
