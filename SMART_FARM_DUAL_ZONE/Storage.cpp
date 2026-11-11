@@ -110,59 +110,66 @@ void Storage_ApplySoilPreset(ZoneConfig& cfg, SoilType soil) {
 
 void Storage_ApplyCropPreset(ZoneConfig& cfg, CropGroup crop) {
   cfg.cropGroup = crop;
-  cfg.useGrowthStages = true;
+  cfg.dapOffset = 0;
 
   float baseLow = cfg.moistureLow;
   float baseHigh = cfg.moistureHigh;
 
   switch (crop) {
     case CROP_LEAFY:
-      strncpy(cfg.cropName, "Leafy Greens", sizeof(cfg.cropName) - 1);
+      strncpy(cfg.cropName, "ผักกินใบ / สลัด", sizeof(cfg.cropName) - 1);
       cfg.pulseOnMinutes = 2;
       cfg.soakMinutes = 8;
-      cfg.maxDailyRuntimeMinutes = 40;
-      cfg.stages[0] = { 10, baseLow + 5, baseHigh, 2, 8, 30 };
-      cfg.stages[1] = { 25, baseLow + 3, baseHigh, 2, 8, 45 };
-      cfg.stages[2] = { 40, baseLow,     baseHigh, 3, 8, 50 };
-      cfg.stages[3] = { 50, baseLow,     baseHigh, 2, 8, 40 };
+      cfg.maxDailyRuntimeMinutes = 20;
+      cfg.maxSoilTemp = 35.0f;
+      cfg.manualDurationMinutes = 15;
+      cfg.stages[0] = { 10, baseLow + 5, baseHigh, 2, 8, 15 };
+      cfg.stages[1] = { 25, baseLow + 3, baseHigh, 2, 8, 20 };
+      cfg.stages[2] = { 40, baseLow,     baseHigh, 3, 8, 25 };
+      cfg.stages[3] = { 50, baseLow,     baseHigh, 2, 8, 20 };
       break;
 
     case CROP_SOLANACEAE:
-      strncpy(cfg.cropName, "Chili & Tomato", sizeof(cfg.cropName) - 1);
+      strncpy(cfg.cropName, "พริก / มะเขือ", sizeof(cfg.cropName) - 1);
       cfg.pulseOnMinutes = 3;
       cfg.soakMinutes = 10;
-      cfg.maxDailyRuntimeMinutes = 60;
-      cfg.stages[0] = { 15, baseLow + 5, baseHigh,     2, 10, 40 };
-      cfg.stages[1] = { 45, baseLow,     baseHigh,     3, 10, 60 };
-      cfg.stages[2] = { 85, baseLow,     baseHigh + 3, 4, 12, 80 };
-      cfg.stages[3] = { 120,baseLow - 3, baseHigh - 2, 3, 10, 50 };
+      cfg.maxDailyRuntimeMinutes = 30;
+      cfg.maxSoilTemp = 36.0f;
+      cfg.manualDurationMinutes = 20;
+      cfg.stages[0] = { 15, baseLow + 5, baseHigh,     2, 10, 20 };
+      cfg.stages[1] = { 45, baseLow,     baseHigh,     3, 10, 30 };
+      cfg.stages[2] = { 85, baseLow,     baseHigh + 3, 4, 12, 45 };
+      cfg.stages[3] = { 120,baseLow - 3, baseHigh - 2, 3, 10, 30 };
       break;
 
     case CROP_VINE_FRUIT:
-      strncpy(cfg.cropName, "Melon & Vine", sizeof(cfg.cropName) - 1);
+      strncpy(cfg.cropName, "เมล่อน / พืชเถาแตง", sizeof(cfg.cropName) - 1);
       cfg.pulseOnMinutes = 3;
       cfg.soakMinutes = 12;
-      cfg.maxDailyRuntimeMinutes = 70;
-      cfg.stages[0] = { 15, baseLow + 5, baseHigh,     2, 10, 40 };
-      cfg.stages[1] = { 40, baseLow,     baseHigh,     3, 12, 60 };
-      cfg.stages[2] = { 70, baseLow,     baseHigh + 5, 4, 15, 90 };
-      cfg.stages[3] = { 85, baseLow - 8, baseHigh - 10, 2, 15, 30 };
+      cfg.maxDailyRuntimeMinutes = 35;
+      cfg.maxSoilTemp = 36.0f;
+      cfg.manualDurationMinutes = 20;
+      cfg.stages[0] = { 15, baseLow + 5, baseHigh,      2, 10, 20 };
+      cfg.stages[1] = { 40, baseLow,     baseHigh,      3, 12, 35 };
+      cfg.stages[2] = { 70, baseLow,     baseHigh + 5,  4, 15, 50 };
+      cfg.stages[3] = { 85, baseLow - 8, baseHigh - 10, 2, 15, 25 };
       break;
 
     case CROP_HERB_AROMA:
-      strncpy(cfg.cropName, "Herbs & Aroma", sizeof(cfg.cropName) - 1);
+      strncpy(cfg.cropName, "สมุนไพร / กะเพรา", sizeof(cfg.cropName) - 1);
       cfg.pulseOnMinutes = 2;
       cfg.soakMinutes = 15;
-      cfg.maxDailyRuntimeMinutes = 35;
-      cfg.stages[0] = { 15, baseLow + 3, baseHigh,     2, 12, 30 };
-      cfg.stages[1] = { 45, baseLow - 3, baseHigh - 3, 2, 15, 35 };
-      cfg.stages[2] = { 80, baseLow - 5, baseHigh - 5, 2, 15, 40 };
-      cfg.stages[3] = { 120,baseLow - 5, baseHigh - 5, 2, 15, 30 };
+      cfg.maxDailyRuntimeMinutes = 20;
+      cfg.maxSoilTemp = 35.0f;
+      cfg.manualDurationMinutes = 15;
+      cfg.stages[0] = { 15, baseLow + 3, baseHigh,     2, 12, 15 };
+      cfg.stages[1] = { 45, baseLow - 3, baseHigh - 3, 2, 15, 20 };
+      cfg.stages[2] = { 80, baseLow - 5, baseHigh - 5, 2, 15, 25 };
+      cfg.stages[3] = { 120,baseLow - 5, baseHigh - 5, 2, 15, 20 };
       break;
 
     case CROP_CUSTOM:
     default:
-      cfg.useGrowthStages = false;
       break;
   }
 }
@@ -178,6 +185,7 @@ void setDefaultConfig(ZoneConfig& cfg, const char* name) {
   cfg.soilType = SOIL_LOAM;
   cfg.cropGroup = CROP_LEAFY;
   cfg.selectedStage = 0;
+  cfg.useGrowthStages = false;
   
   cfg.startYear = 2026;
   cfg.startMonth = 1;
@@ -185,7 +193,7 @@ void setDefaultConfig(ZoneConfig& cfg, const char* name) {
   cfg.dapOffset = 0;
   
   cfg.maxSoilTemp = 35.0f;
-  cfg.manualDurationMinutes = 10;
+  cfg.manualDurationMinutes = 15;
   
   Storage_ApplyCombinedPreset(cfg, SOIL_LOAM, CROP_LEAFY);
 }
@@ -221,6 +229,7 @@ void Storage_Init() {
   // Load Left Zone Config
   if (storedVer == ZONE_CONFIG_VERSION && prefs.getBytesLength("cfgLeft") == sizeof(ZoneConfig)) {
     prefs.getBytes("cfgLeft", &configLeft, sizeof(ZoneConfig));
+    configLeft.dapOffset = 0;
   } else {
     Serial.printf("[Storage] Migrating / Init Left Config (Stored ver: %u, expected: %u)\n", storedVer, ZONE_CONFIG_VERSION);
     setDefaultConfig(configLeft, "Zone Left Crop");
@@ -230,6 +239,7 @@ void Storage_Init() {
   // Load Right Zone Config
   if (storedVer == ZONE_CONFIG_VERSION && prefs.getBytesLength("cfgRight") == sizeof(ZoneConfig)) {
     prefs.getBytes("cfgRight", &configRight, sizeof(ZoneConfig));
+    configRight.dapOffset = 0;
   } else {
     Serial.printf("[Storage] Migrating / Init Right Config (Stored ver: %u, expected: %u)\n", storedVer, ZONE_CONFIG_VERSION);
     setDefaultConfig(configRight, "Zone Right Crop");

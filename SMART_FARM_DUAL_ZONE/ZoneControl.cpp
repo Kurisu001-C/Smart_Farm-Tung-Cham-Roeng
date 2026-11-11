@@ -54,6 +54,7 @@ void ZoneControl_GetActiveParams(int zoneIdx, float& low, float& high, int& puls
 
 static void applyValveHardware(int zoneIdx, bool open) {
   uint8_t valvePin = (zoneIdx == 0) ? VALVE_LEFT_CH : VALVE_RIGHT_CH;
+  bool wasOpen = Relay_GetChannel(valvePin);
   Relay_SetChannel(valvePin, open);
   
   ZoneRuntime& zn = (zoneIdx == 0) ? zoneLeft : zoneRight;
@@ -63,6 +64,10 @@ static void applyValveHardware(int zoneIdx, bool open) {
     }
   } else {
     zn.valveOpenStartTime = 0;
+  }
+
+  if (wasOpen != open) {
+    BlynkManager_SendControlState();
   }
 }
 
@@ -137,7 +142,13 @@ void ZoneControl_SetMode(int zoneIdx, ZoneMode newMode) {
 
 void ZoneControl_SetManualSwitch(int zoneIdx, bool openValve) {
   ZoneRuntime& zn = (zoneIdx == 0) ? zoneLeft : zoneRight;
-  
+
+  // Safety: ระบบหลักปิดอยู่ → ไม่ยอมเปิดน้ำ (แต่สั่งปิดน้ำได้เสมอ)
+  if (openValve && !masterEnable) {
+    AppLog_Log("VALVE", "Zone %s manual open REJECTED: master system is disabled", (zoneIdx == 0) ? "Left" : "Right");
+    return;
+  }
+
   if (zn.mode == MODE_MANUAL) {
     zn.manualValveOpen = openValve;
     applyValveHardware(zoneIdx, openValve);
@@ -177,24 +188,10 @@ static void updateSingleZone(int zoneIdx, const RTCDateTime& now, bool timeValid
     if (cfg.selectedStage == STAGE_UNPLANTED) {
       zn.currentDAP = 0; // ไม่นับวันที่ปลูกเมื่ออยู่ในสถานะไม่ได้ปลูก
     } else {
-      zn.currentDAP = CalculateDAP(cfg.startYear, cfg.startMonth, cfg.startDay, cfg.dapOffset, now);
-      // Auto-advance stage if useGrowthStages is enabled
-      if (cfg.useGrowthStages) {
-        int autoStage = 3;
-        for (int i = 0; i < 4; i++) {
-          if (zn.currentDAP <= cfg.stages[i].endDAP) {
-            autoStage = i;
-            break;
-          }
-        }
-        if (cfg.selectedStage != autoStage) {
-          cfg.selectedStage = autoStage;
-          zn.currentStageIndex = autoStage;
-          Storage_SaveZoneConfig(zoneIdx, cfg);
-          AppLog_Log("STAGE", "Zone %s auto-advanced to Stage %d (DAP %d)", zoneName, autoStage + 1, zn.currentDAP);
-          BlynkManager_SendStatus();
-        }
-      }
+      zn.currentDAP = CalculateDAP(cfg.startYear, cfg.startMonth, cfg.startDay, 0, now);
+      // ระยะการเจริญเติบโต "ผู้ดูแลเป็นคนเลือก" (Web Portal / Blynk) — เฟิร์มแวร์ไม่เลื่อนระยะเอง
+      // DAP ยังนับต่อไปเพื่อแสดงผล และให้แอปแนะนำได้ว่าตามวันปลูกควรอยู่ระยะไหน (stages[i].endDAP)
+      // (เดิม 2.0.0 เลื่อนระยะตาม DAP ทุกวินาที ทำให้ค่าที่ผู้ดูแลเลือกถูกเขียนทับทันที)
     }
   } else {
     if (cfg.selectedStage == STAGE_UNPLANTED) {
@@ -254,6 +251,16 @@ static void updateSingleZone(int zoneIdx, const RTCDateTime& now, bool timeValid
   }
   
   if (zn.mode == MODE_MANUAL) {
+    // Safety: ปิดระบบหลักระหว่างเปิดน้ำมือ → ปิดวาล์วทันที (เดิมวาล์วเปิดค้างได้)
+    if (!masterEnable && zn.manualValveOpen) {
+      applyValveHardware(zoneIdx, false);
+      zn.manualValveOpen = false;
+      zn.state = STATE_IDLE;
+      AppLog_Log("VALVE", "%s Zone manual valve closed (master system disabled)", zoneName);
+      BlynkManager_SendStatusData(zoneIdx);
+      return;
+    }
+
     // Check Manual Duration Auto-cutoff (Always using millis)
     if (zn.manualValveOpen) {
       unsigned long elapsedSec = (nowMs - zn.stateStartTime) / 1000UL;

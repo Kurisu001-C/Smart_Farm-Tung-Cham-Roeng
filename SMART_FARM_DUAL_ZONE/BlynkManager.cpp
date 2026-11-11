@@ -71,6 +71,12 @@ static unsigned long lastTelemetrySync = 0;
 static unsigned long lastStatusSync = 0;
 static unsigned long lastThrottlePublishMs = 0;
 
+// ถ้าสั่งส่งสถานะถี่เกิน (ภายใน 500ms) จะไม่ทิ้ง แต่ตั้งธงไว้ แล้วส่งตามใน BlynkManager_Update()
+// (เดิมถูกทิ้งเงียบ ทำให้ State_L/R ค้างค่าเก่าได้นานถึง ~2 นาที)
+static const unsigned long PUBLISH_THROTTLE_MS = 500UL;
+static bool pendingStatusSync = false;   // ต้องส่ง ControlState + Status + Telemetry
+static bool pendingSensorSync = false;   // ต้องส่ง Telemetry อย่างเดียว
+
 static float prevHumL = -99.0f, prevTempL = -99.0f;
 static float prevHumR = -99.0f, prevTempR = -99.0f;
 
@@ -245,18 +251,12 @@ void BlynkManager_SendTelemetry() {
 void BlynkManager_SendControlState() {
   if (!mqttConnected || !canSendMessage() || mqttClient == NULL) return;
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<384> doc;
   doc["Master"]  = masterEnable ? 1 : 0;
   doc["Mode_L"]  = (int)zoneLeft.mode;
-  doc["Valve_L"] = zoneLeft.manualValveOpen ? 1 : 0;
+  doc["Valve_L"] = Relay_GetChannel(VALVE_LEFT_CH) ? 1 : 0;
   doc["Mode_R"]  = (int)zoneRight.mode;
-  doc["Valve_R"] = zoneRight.manualValveOpen ? 1 : 0;
-  doc["Relay3"]  = Relay_GetChannel(3) ? 1 : 0;
-  doc["Relay4"]  = Relay_GetChannel(4) ? 1 : 0;
-  doc["Relay5"]  = Relay_GetChannel(5) ? 1 : 0;
-  doc["Relay6"]  = Relay_GetChannel(6) ? 1 : 0;
-  doc["Relay7"]  = Relay_GetChannel(7) ? 1 : 0;
-  doc["Relay8"]  = Relay_GetChannel(8) ? 1 : 0;
+  doc["Valve_R"] = Relay_GetChannel(VALVE_RIGHT_CH) ? 1 : 0;
 
   String output;
   serializeJson(doc, output);
@@ -290,7 +290,13 @@ void BlynkManager_SendZoneConfig(int zoneIdx) {
   ZoneConfig& cfg = (zoneIdx == 0) ? configLeft : configRight;
   String sfx = (zoneIdx == 0) ? "_L" : "_R";
 
-  StaticJsonDocument<512> doc;
+  int presetCode = 100 + (((int)cfg.cropGroup % 4) * 10) + (((int)cfg.soilType % 4) * 2) + (cfg.useGrowthStages ? 1 : 0);
+
+  StaticJsonDocument<640> doc;
+  doc["Crop" + sfx]      = (int)cfg.cropGroup;
+  doc["Soil" + sfx]      = (int)cfg.soilType;
+  doc["UseStages" + sfx] = cfg.useGrowthStages ? 1 : 0;
+  doc["Preset" + sfx]    = presetCode;
   doc["MoistLow" + sfx]  = serialized(String(cfg.moistureLow, 1));
   doc["MoistHigh" + sfx] = serialized(String(cfg.moistureHigh, 1));
   doc["MoistCrit" + sfx] = serialized(String(cfg.moistureCritical, 1));
@@ -307,17 +313,40 @@ void BlynkManager_SendZoneConfig(int zoneIdx) {
   lastThrottlePublishMs = millis();
 }
 
+static void sendFullStatusNow() {
+  pendingStatusSync = false;
+  pendingSensorSync = false;            // Telemetry รวมอยู่ในชุดนี้แล้ว
+  BlynkManager_SendControlState();
+  BlynkManager_SendStatus();
+  BlynkManager_SendTelemetry();
+}
+
 void BlynkManager_SendStatusData(int zoneIdx) {
   (void)zoneIdx;
-  if (millis() - lastThrottlePublishMs > 500UL) {
-    BlynkManager_SendControlState();
-    BlynkManager_SendStatus();
-  }
+  if (millis() - lastThrottlePublishMs > PUBLISH_THROTTLE_MS) sendFullStatusNow();
+  else pendingStatusSync = true;        // ส่งตามทีหลัง ไม่ทิ้ง
 }
 
 void BlynkManager_SendSensorData(int zoneIdx) {
   (void)zoneIdx;
-  if (millis() - lastThrottlePublishMs > 500UL) {
+  if (millis() - lastThrottlePublishMs > PUBLISH_THROTTLE_MS) {
+    pendingSensorSync = false;
+    BlynkManager_SendTelemetry();
+  } else {
+    pendingSensorSync = true;
+  }
+}
+
+/** ส่งข้อมูลที่ค้างไว้จากการ throttle เมื่อพ้นช่วง 500ms แล้ว (เรียกจาก BlynkManager_Update) */
+static void flushPendingSync() {
+  if (!mqttConnected) return;
+  if (!pendingStatusSync && !pendingSensorSync) return;
+  if (millis() - lastThrottlePublishMs <= PUBLISH_THROTTLE_MS) return;
+
+  if (pendingStatusSync) {
+    sendFullStatusNow();
+  } else {
+    pendingSensorSync = false;
     BlynkManager_SendTelemetry();
   }
 }
@@ -339,9 +368,112 @@ void BlynkManager_LogEvent(const char* eventCode, const char* desc) {
 /*****************************************************************************
  * Inbound Downlink Processing (Non-blocking queue execution)
  *****************************************************************************/
+static void resetZoneRuntimeFromBlynk(int zoneIdx) {
+  if (zoneIdx == 0) {
+    zoneLeft.dailyRuntimeSeconds = 0;
+    zoneLeft.lockoutUntilMs = 0;
+    zoneLeft.consecutivePulses = 0;
+  } else {
+    zoneRight.dailyRuntimeSeconds = 0;
+    zoneRight.lockoutUntilMs = 0;
+    zoneRight.consecutivePulses = 0;
+  }
+  RTCDateTime now;
+  int nowDateInt = 0;
+  if (RTC_GetTime(now)) {
+    nowDateInt = now.year * 10000 + now.month * 100 + now.day;
+  }
+  Storage_SaveDailyRuntime(zoneLeft.dailyRuntimeSeconds, zoneRight.dailyRuntimeSeconds, nowDateInt);
+  AppLog_Log("RESET", "Zone %s daily watering runtime reset to 0 min from Blynk.", (zoneIdx == 0) ? "Left" : "Right");
+  BlynkManager_SendStatus();
+}
+
+/**
+ * เริ่มรอบปลูกใหม่วันนี้ใน cfg/zn (ยังไม่บันทึก NVS): วันเริ่มปลูก = วันนี้, DAP = 0, ระยะที่ 1
+ * ถ้า RTC ยังไม่มีเวลาที่ถูกต้อง จะคงวันเริ่มปลูกเดิมไว้ และคืนค่า false
+ */
+static bool startCropCycleToday(ZoneConfig& cfg, ZoneRuntime& zn) {
+  RTCDateTime now;
+  bool timeOk = RTC_GetTime(now) && now.year >= 2024;
+  if (timeOk) {
+    cfg.startYear = now.year;
+    cfg.startMonth = now.month;
+    cfg.startDay = now.day;
+  }
+  cfg.dapOffset = 0;
+  cfg.selectedStage = 0;
+  zn.currentDAP = 0;
+  zn.currentStageIndex = 0;
+  return timeOk;
+}
+
+static void resetZoneDapFromBlynk(int zoneIdx) {
+  ZoneConfig& cfg = (zoneIdx == 0) ? configLeft : configRight;
+  ZoneRuntime& zn = (zoneIdx == 0) ? zoneLeft : zoneRight;
+  if (!startCropCycleToday(cfg, zn)) {
+    AppLog_Log("WARN", "Zone %s DAP reset: RTC time invalid, start date unchanged.", (zoneIdx == 0) ? "Left" : "Right");
+  }
+  Storage_SaveZoneConfig(zoneIdx, cfg);
+  AppLog_Log("CROP", "Zone %s crop cycle reset from Blynk (DAP=0, Stage=1).", (zoneIdx == 0) ? "Left" : "Right");
+  BlynkManager_SendStatus();
+}
+
+static void applyZonePresetFromBlynk(int zoneIdx, SoilType soil, CropGroup crop, bool useStages) {
+  ZoneConfig& cfg = (zoneIdx == 0) ? configLeft : configRight;
+  ZoneRuntime& zn = (zoneIdx == 0) ? zoneLeft : zoneRight;
+  bool wasUnplanted = (cfg.selectedStage == STAGE_UNPLANTED);
+  Storage_ApplyCombinedPreset(cfg, soil, crop);
+  cfg.useGrowthStages = useStages;
+  cfg.dapOffset = 0;
+  if (wasUnplanted) {
+    // แปลงว่าง → ตั้งสูตร = เริ่มปลูกวันนี้
+    // (เดิมเปลี่ยนเป็น "ปลูกแล้ว" แต่ใช้วันเริ่มปลูกเก่า ทำให้ DAP สูงผิดและเด้งไประยะ 4 ทันที)
+    startCropCycleToday(cfg, zn);
+  }
+  Storage_SaveZoneConfig(zoneIdx, cfg);
+  AppLog_Log("CROP", "Zone %s preset updated from Blynk (Crop=%d, Soil=%d, UseStages=%d)",
+             (zoneIdx == 0) ? "Left" : "Right", (int)crop, (int)soil, useStages ? 1 : 0);
+  BlynkManager_SendZoneConfig(zoneIdx);
+  BlynkManager_SendStatus();
+}
+
 static void processConfigField(int zoneIdx, const String& field, float val) {
   ZoneConfig tmp = (zoneIdx == 0) ? configLeft : configRight;
-  
+
+  if (field.equalsIgnoreCase("Crop")) {
+    int c = constrain((int)val, 0, 3);
+    applyZonePresetFromBlynk(zoneIdx, tmp.soilType, (CropGroup)c, tmp.useGrowthStages);
+    return;
+  }
+  if (field.equalsIgnoreCase("Soil")) {
+    int s = constrain((int)val, 0, 3);
+    applyZonePresetFromBlynk(zoneIdx, (SoilType)s, tmp.cropGroup, tmp.useGrowthStages);
+    return;
+  }
+  if (field.equalsIgnoreCase("UseStages")) {
+    applyZonePresetFromBlynk(zoneIdx, tmp.soilType, tmp.cropGroup, ((int)val == 1));
+    return;
+  }
+  if (field.equalsIgnoreCase("Preset")) {
+    int code = (int)val;
+    if (code >= 100 && code < 140) {
+      int rem = code - 100;
+      int crop = constrain(rem / 10, 0, 3);
+      int soil = constrain((rem % 10) / 2, 0, 3);
+      bool useStg = (rem % 2) == 1;
+      applyZonePresetFromBlynk(zoneIdx, (SoilType)soil, (CropGroup)crop, useStg);
+    }
+    return;
+  }
+  if (field.equalsIgnoreCase("ResetRuntime")) {
+    resetZoneRuntimeFromBlynk(zoneIdx);
+    return;
+  }
+  if (field.equalsIgnoreCase("ResetDAP")) {
+    resetZoneDapFromBlynk(zoneIdx);
+    return;
+  }
+
   if (field.equalsIgnoreCase("MoistLow")) tmp.moistureLow = val;
   else if (field.equalsIgnoreCase("MoistHigh")) tmp.moistureHigh = val;
   else if (field.equalsIgnoreCase("MoistCrit")) tmp.moistureCritical = val;
@@ -361,6 +493,45 @@ static void processConfigField(int zoneIdx, const String& field, float val) {
     Serial.printf("[Blynk Config] Zone %d updated %s = %.1f\n", zoneIdx, field.c_str(), val);
   } else {
     Serial.printf("[Blynk Config REJECTED] Zone %d invalid %s: %s\n", zoneIdx, field.c_str(), err.c_str());
+  }
+}
+
+static void processZoneStageOrCode(int zoneIdx, int st) {
+  ZoneConfig& cfg = (zoneIdx == 0) ? configLeft : configRight;
+  ZoneRuntime& zn = (zoneIdx == 0) ? zoneLeft : zoneRight;
+  const char* zName = (zoneIdx == 0) ? "Left" : "Right";
+
+  if (st == 98) {
+    resetZoneRuntimeFromBlynk(zoneIdx);
+    return;
+  }
+  if (st == 99) {
+    resetZoneDapFromBlynk(zoneIdx);
+    return;
+  }
+  if (st >= 100 && st < 140) {
+    int rem = st - 100;
+    int crop = constrain(rem / 10, 0, 3);
+    int soil = constrain((rem % 10) / 2, 0, 3);
+    bool useStg = (rem % 2) == 1;
+    applyZonePresetFromBlynk(zoneIdx, (SoilType)soil, (CropGroup)crop, useStg);
+    return;
+  }
+
+  if (st == 0) {
+    cfg.selectedStage = STAGE_UNPLANTED;
+    zn.currentStageIndex = STAGE_UNPLANTED;
+    zn.currentDAP = 0;
+    Storage_SaveZoneConfig(zoneIdx, cfg);
+    BlynkManager_SendStatus();
+    AppLog_Log("STAGE", "Zone %s set to UNPLANTED (ไม่ได้ปลูก / พักแปลง) from Blynk. DAP stopped.", zName);
+  } else if (st >= 1 && st <= 4) {
+    cfg.selectedStage = st - 1;
+    zn.currentStageIndex = st - 1;
+    Storage_SaveZoneConfig(zoneIdx, cfg);
+    BlynkManager_SendStatus();
+    AppLog_Log("STAGE", "Zone %s Stage set to %d from Blynk", zName, st);
+    Serial.printf("[Blynk] Zone %s Stage set to %d\n", zName, st);
   }
 }
 
@@ -393,6 +564,15 @@ static void processDownlinkItem(const String& topic, const String& val) {
       if (doc.containsKey("R_mode")) ZoneControl_SetMode(1, (ZoneMode)doc["R_mode"].as<int>());
       if (doc.containsKey("L_valve")) ZoneControl_SetManualSwitch(0, doc["L_valve"] == 1);
       if (doc.containsKey("R_valve")) ZoneControl_SetManualSwitch(1, doc["R_valve"] == 1);
+      if (doc.containsKey("resetRuntime")) resetZoneRuntimeFromBlynk(doc["resetRuntime"].as<int>());
+      if (doc.containsKey("resetDap")) resetZoneDapFromBlynk(doc["resetDap"].as<int>());
+      if (doc.containsKey("presetZone")) {
+        int z = doc["presetZone"].as<int>();
+        int c = doc["crop"] | 0;
+        int s = doc["soil"] | 1;
+        bool u = (doc["useStages"] | 0) == 1;
+        applyZonePresetFromBlynk(z, (SoilType)s, (CropGroup)c, u);
+      }
       BlynkManager_SendControlState();
       return;
     }
@@ -407,8 +587,13 @@ static void processDownlinkItem(const String& topic, const String& val) {
 
   // Zone Left Controls
   if (ds.equalsIgnoreCase("Mode_L") || ds.equalsIgnoreCase("L_mode") || ds.equalsIgnoreCase("V4")) {
-    ZoneControl_SetMode(0, (ZoneMode)val.toInt());
-    BlynkManager_SendControlState();
+    int m = val.toInt();
+    if (m >= 98) {
+      processZoneStageOrCode(0, m);
+    } else {
+      ZoneControl_SetMode(0, (ZoneMode)constrain(m, 0, 2));
+      BlynkManager_SendControlState();
+    }
     return;
   }
   if (ds.equalsIgnoreCase("Valve_L") || ds.equalsIgnoreCase("L_valve") || ds.equalsIgnoreCase("V5")) {
@@ -417,29 +602,37 @@ static void processDownlinkItem(const String& topic, const String& val) {
     return;
   }
   if (ds.equalsIgnoreCase("Stage_L") || ds.equalsIgnoreCase("L_stage") || ds.equalsIgnoreCase("V16")) {
-    int st = val.toInt();
-    if (st == 0) {
-      configLeft.selectedStage = STAGE_UNPLANTED;
-      zoneLeft.currentStageIndex = STAGE_UNPLANTED;
-      zoneLeft.currentDAP = 0;
-      Storage_SaveZoneConfig(0, configLeft);
-      BlynkManager_SendStatus();
-      AppLog_Log("STAGE", "Zone Left set to UNPLANTED (ไม่ได้ปลูก / พักแปลง) from Blynk. DAP stopped.");
-    } else if (st >= 1 && st <= 4) {
-      configLeft.selectedStage = st - 1;
-      zoneLeft.currentStageIndex = st - 1;
-      Storage_SaveZoneConfig(0, configLeft);
-      BlynkManager_SendStatus();
-      AppLog_Log("STAGE", "Zone Left Stage set to %d from Blynk", st);
-      Serial.printf("[Blynk] Zone Left Stage set to %d\n", st);
-    }
+    processZoneStageOrCode(0, val.toInt());
     return;
   }
+  if (ds.equalsIgnoreCase("DAP_L") || ds.equalsIgnoreCase("V6")) {
+    int v = val.toInt();
+    if (v == 0) resetZoneDapFromBlynk(0);
+    else if (v >= 98) processZoneStageOrCode(0, v);
+    return;
+  }
+  if (ds.equalsIgnoreCase("DailyTime_L") || ds.equalsIgnoreCase("V7")) {
+    int v = val.toInt();
+    if (v == 0) resetZoneRuntimeFromBlynk(0);
+    else if (v >= 98) processZoneStageOrCode(0, v);
+    return;
+  }
+  if (ds.equalsIgnoreCase("V8"))  { processConfigField(0, "Crop", val.toFloat()); return; }
+  if (ds.equalsIgnoreCase("V9"))  { processConfigField(0, "Soil", val.toFloat()); return; }
+  if (ds.equalsIgnoreCase("V10")) { processConfigField(0, "UseStages", val.toFloat()); return; }
+  if (ds.equalsIgnoreCase("V11")) { resetZoneRuntimeFromBlynk(0); return; }
+  if (ds.equalsIgnoreCase("V12")) { resetZoneDapFromBlynk(0); return; }
+  if (ds.equalsIgnoreCase("V15")) { processConfigField(0, "Preset", val.toFloat()); return; }
 
   // Zone Right Controls
   if (ds.equalsIgnoreCase("Mode_R") || ds.equalsIgnoreCase("R_mode") || ds.equalsIgnoreCase("V24")) {
-    ZoneControl_SetMode(1, (ZoneMode)val.toInt());
-    BlynkManager_SendControlState();
+    int m = val.toInt();
+    if (m >= 98) {
+      processZoneStageOrCode(1, m);
+    } else {
+      ZoneControl_SetMode(1, (ZoneMode)constrain(m, 0, 2));
+      BlynkManager_SendControlState();
+    }
     return;
   }
   if (ds.equalsIgnoreCase("Valve_R") || ds.equalsIgnoreCase("R_valve") || ds.equalsIgnoreCase("V25")) {
@@ -448,33 +641,27 @@ static void processDownlinkItem(const String& topic, const String& val) {
     return;
   }
   if (ds.equalsIgnoreCase("Stage_R") || ds.equalsIgnoreCase("R_stage") || ds.equalsIgnoreCase("V36")) {
-    int st = val.toInt();
-    if (st == 0) {
-      configRight.selectedStage = STAGE_UNPLANTED;
-      zoneRight.currentStageIndex = STAGE_UNPLANTED;
-      zoneRight.currentDAP = 0;
-      Storage_SaveZoneConfig(1, configRight);
-      BlynkManager_SendStatus();
-      AppLog_Log("STAGE", "Zone Right set to UNPLANTED (ไม่ได้ปลูก / พักแปลง) from Blynk. DAP stopped.");
-    } else if (st >= 1 && st <= 4) {
-      configRight.selectedStage = st - 1;
-      zoneRight.currentStageIndex = st - 1;
-      Storage_SaveZoneConfig(1, configRight);
-      BlynkManager_SendStatus();
-      AppLog_Log("STAGE", "Zone Right Stage set to %d from Blynk", st);
-      Serial.printf("[Blynk] Zone Right Stage set to %d\n", st);
-    }
+    processZoneStageOrCode(1, val.toInt());
     return;
   }
-
-  // Relays CH3 - CH8
-  for (int ch = 3; ch <= 8; ch++) {
-    if (ds.equalsIgnoreCase("Relay" + String(ch))) {
-      Relay_SetChannel(ch, val.toInt() == 1);
-      BlynkManager_SendControlState();
-      return;
-    }
+  if (ds.equalsIgnoreCase("DAP_R") || ds.equalsIgnoreCase("V26")) {
+    int v = val.toInt();
+    if (v == 0) resetZoneDapFromBlynk(1);
+    else if (v >= 98) processZoneStageOrCode(1, v);
+    return;
   }
+  if (ds.equalsIgnoreCase("DailyTime_R") || ds.equalsIgnoreCase("V27")) {
+    int v = val.toInt();
+    if (v == 0) resetZoneRuntimeFromBlynk(1);
+    else if (v >= 98) processZoneStageOrCode(1, v);
+    return;
+  }
+  if (ds.equalsIgnoreCase("V28")) { processConfigField(1, "Crop", val.toFloat()); return; }
+  if (ds.equalsIgnoreCase("V29")) { processConfigField(1, "Soil", val.toFloat()); return; }
+  if (ds.equalsIgnoreCase("V30")) { processConfigField(1, "UseStages", val.toFloat()); return; }
+  if (ds.equalsIgnoreCase("V31")) { resetZoneRuntimeFromBlynk(1); return; }
+  if (ds.equalsIgnoreCase("V32")) { resetZoneDapFromBlynk(1); return; }
+  if (ds.equalsIgnoreCase("V35")) { processConfigField(1, "Preset", val.toFloat()); return; }
 
   // Left Zone Configurations
   if (ds.endsWith("_L") || ds.endsWith("_l")) {
@@ -514,6 +701,9 @@ void BlynkManager_Update() {
   while (downlinkQueue != NULL && xQueueReceive(downlinkQueue, &item, 0) == pdTRUE) {
     processDownlinkItem(String(item.topic), String(item.payload));
   }
+
+  // 2.1 ส่งสถานะที่ค้างจากการ throttle
+  flushPendingSync();
 
   // 3. Initial Full Sync after connect
   if (needFullSync && mqttConnected) {

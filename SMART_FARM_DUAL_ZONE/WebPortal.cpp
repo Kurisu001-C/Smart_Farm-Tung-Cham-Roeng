@@ -80,6 +80,19 @@ static const char HTML_HEADER[] PROGMEM = R"rawliteral(
     .tabcontent { display:none; }
     .guide-box { background:#1e1b4b; border-left:4px solid #818cf8; padding:10px; font-size:12px; border-radius:4px; margin-bottom:12px; color:#c7d2fe; line-height:1.5; }
     .alert-box { background:#7f1d1d; border-left:4px solid #ef4444; padding:12px; font-size:13px; border-radius:6px; margin-bottom:14px; color:#fecaca; }
+    .step-hdr { display:flex; align-items:center; gap:8px; margin:14px 0 8px 0; font-size:15px; font-weight:bold; color:#f8fafc; }
+    .step-num { width:24px; height:24px; border-radius:50%; background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid rgba(56,189,248,0.4); display:inline-flex; align-items:center; justify-content:center; font-size:12px; }
+    .opt-grid4 { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+    .opt-grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; }
+    .opt-card { background:#0f172a; border:1.5px solid #334155; border-radius:10px; padding:12px; cursor:pointer; transition:all 0.15s; text-align:left; }
+    .opt-card:hover { border-color:#64748b; }
+    .opt-card.active { border-color:#38bdf8; background:rgba(56,189,248,0.12); box-shadow:0 0 0 1px rgba(56,189,248,0.3); }
+    .opt-card.active-purple { border-color:#a855f7; background:rgba(168,85,247,0.12); box-shadow:0 0 0 1px rgba(168,85,247,0.3); }
+    .sum-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; text-align:center; margin:10px 0; }
+    .sum-box { background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; }
+    .zone-sw { display:inline-flex; background:#0f172a; padding:4px; border-radius:10px; border:1px solid #334155; gap:4px; }
+    .zone-sw button { background:transparent; color:#94a3b8; border:none; padding:6px 14px; border-radius:8px; font-weight:bold; cursor:pointer; font-size:13px; }
+    .zone-sw button.active { background:#0284c7; color:white; }
   </style>
 </head>
 <body>
@@ -105,26 +118,68 @@ static const char HTML_FOOTER[] PROGMEM = R"rawliteral(
         if (btn) btn.className += " active";
       }
     }
-    window.addEventListener('load', function() {
-      var params = new URLSearchParams(window.location.search);
-      var t = params.get('tab');
-      if (t && document.getElementById(t)) {
-        openTab(null, t);
+    function switchZoneCfg(z) {
+      document.getElementById('zPanel_L').style.display = (z === 'L') ? 'block' : 'none';
+      document.getElementById('zPanel_R').style.display = (z === 'R') ? 'block' : 'none';
+      document.getElementById('zTab_L').className = (z === 'L') ? 'active' : '';
+      document.getElementById('zTab_R').className = (z === 'R') ? 'active' : '';
+    }
+    function toggleAdv(pfx) {
+      var el = document.getElementById(pfx + 'advSec');
+      var txt = document.getElementById(pfx + 'advBtnTxt');
+      if (el.style.display === 'none') {
+        el.style.display = 'block';
+        txt.innerText = 'ซ่อนตัวเลขเชิงลึก';
+      } else {
+        el.style.display = 'none';
+        txt.innerText = 'ดูตัวเลขเชิงลึก (สำหรับช่าง)';
       }
-    });
+    }
 
     const soilData = {
-      0: { low: 30.0, high: 45.0, crit: 15.0 }, // Sandy Loam
-      1: { low: 42.0, high: 60.0, crit: 22.0 }, // Loam
-      2: { low: 52.0, high: 70.0, crit: 32.0 }, // Clay Loam
-      3: { low: 55.0, high: 75.0, crit: 35.0 }  // Cocopeat
+      0: { low: 30.0, high: 45.0, crit: 15.0, name: 'ดินร่วนปนทราย' },
+      1: { low: 42.0, high: 60.0, crit: 22.0, name: 'ดินร่วนทั่วไป' },
+      2: { low: 52.0, high: 70.0, crit: 32.0, name: 'ดินเหนียว/ร่วนเหนียว' },
+      3: { low: 55.0, high: 75.0, crit: 35.0, name: 'ขุยมะพร้าว/วัสดุปลูก' }
     };
+    const cropNames = {
+      0: 'ผักกินใบ / สลัด',
+      1: 'พริก / มะเขือ',
+      2: 'เมล่อน / พืชเถาแตง',
+      3: 'สมุนไพร / กะเพรา'
+    };
+
+    function pickCrop(pfx, val) {
+      document.getElementById(pfx + 'crop').value = val;
+      if (cropNames[val]) document.getElementById(pfx + 'name').value = cropNames[val];
+      for (var i = 0; i < 4; i++) {
+        var c = document.getElementById(pfx + 'cropCard_' + i);
+        if (c) c.className = 'opt-card' + (i === val ? ' active' : '');
+      }
+      applyPresets(pfx);
+    }
+    function pickSoil(pfx, val) {
+      document.getElementById(pfx + 'soil').value = val;
+      for (var i = 0; i < 4; i++) {
+        var c = document.getElementById(pfx + 'soilCard_' + i);
+        if (c) c.className = 'opt-card' + (i === val ? ' active' : '');
+      }
+      applyPresets(pfx);
+    }
+    function pickStageMode(pfx, val) {
+      document.getElementById(pfx + 'useStages').value = val;
+      var c0 = document.getElementById(pfx + 'modeCard_0');
+      var c1 = document.getElementById(pfx + 'modeCard_1');
+      if (c0) c0.className = 'opt-card' + (val === 0 ? ' active' : '');
+      if (c1) c1.className = 'opt-card' + (val === 1 ? ' active-purple' : '');
+      updateSummary(pfx);
+    }
 
     function applyPresets(prefix) {
       const sType = parseInt(document.getElementById(prefix + 'soil').value);
       const cType = parseInt(document.getElementById(prefix + 'crop').value);
 
-      if (sType !== 4 && soilData[sType]) {
+      if (soilData[sType]) {
         let bLow = soilData[sType].low;
         let bHigh = soilData[sType].high;
         let bCrit = soilData[sType].crit;
@@ -175,6 +230,32 @@ static const char HTML_FOOTER[] PROGMEM = R"rawliteral(
           document.getElementById(prefix + 'manualCut').value = 15;
         }
       }
+      updateSummary(prefix);
+    }
+
+    function updateSummary(prefix) {
+      var low = parseFloat(document.getElementById(prefix + 'low').value || 0).toFixed(1);
+      var high = parseFloat(document.getElementById(prefix + 'high').value || 0).toFixed(1);
+      var pulse = document.getElementById(prefix + 'pulse').value || 2;
+      var soak = document.getElementById(prefix + 'soak').value || 8;
+      var maxD = document.getElementById(prefix + 'maxDaily').value || 20;
+      var useStg = parseInt(document.getElementById(prefix + 'useStages').value || 0);
+
+      document.getElementById(prefix + 'dispLow').innerText = low + '%';
+      document.getElementById(prefix + 'dispHigh').innerText = high + '%';
+      document.getElementById(prefix + 'dispPulseSoak').innerText = 'รด ' + pulse + 'น. พัก ' + soak + 'น.';
+      document.getElementById(prefix + 'dispMaxDaily').innerText = maxD + ' นาที';
+
+      if (useStg === 0) {
+        document.getElementById(prefix + 'dispExp').innerText =
+          'โหมดคงที่: ระบบจะเริ่มรดเมื่อความชื้นต่ำกว่า ' + low + '% โดยเปิดน้ำครั้งละ ' + pulse + ' นาที แล้วพักซึม ' + soak + ' นาที จนกว่าจะชื้นถึง ' + high + '% (จำกัดไม่เกิน ' + maxD + ' นาที/วัน)';
+      } else {
+        var s0p = document.getElementById(prefix + 's0_pulse').value;
+        var s0s = document.getElementById(prefix + 's0_soak').value;
+        var s0h = document.getElementById(prefix + 's0_high').value;
+        document.getElementById(prefix + 'dispExp').innerText =
+          'โหมด 4 ระยะ: ใช้สูตรน้ำตามระยะที่ผู้ดูแลเลือกบนหน้า Dashboard (ระยะต้นกล้า รด ' + s0p + 'น. พัก ' + s0s + 'น. เป้าหมาย ' + s0h + '%)';
+      }
     }
 
     function setStage(prefix, idx, dap, low, high, pulse, soak, maxDaily) {
@@ -185,6 +266,16 @@ static const char HTML_FOOTER[] PROGMEM = R"rawliteral(
       document.getElementById(prefix + 's' + idx + '_soak').value = soak;
       document.getElementById(prefix + 's' + idx + '_maxDaily').value = maxDaily;
     }
+
+    window.addEventListener('load', function() {
+      var params = new URLSearchParams(window.location.search);
+      var t = params.get('tab');
+      if (t && document.getElementById(t)) {
+        openTab(null, t);
+      }
+      updateSummary('L_');
+      updateSummary('R_');
+    });
   </script>
 </body>
 </html>
@@ -225,11 +316,16 @@ static void handleRoot() {
   s += "<div class='grid'>";
 
   // Zone Left Card
-  s += "<div class='card'><div class='card-title'><span>🌿 แปลงซ้าย (Zone Left)</span>";
+  bool valveLeftOpen = Relay_GetChannel(VALVE_LEFT_CH);
+  s += "<div class='card'><div class='card-title'><span>🌿 แปลงซ้าย (Zone Left)</span><div>";
+  s += valveLeftOpen ? "<span class='badge badge-ok' style='margin-right:6px;'>💧 วาล์ว: เปิด</span>" : "<span class='badge' style='background:#334155; color:#94a3b8; margin-right:6px;'>⚪ วาล์ว: ปิด</span>";
   s += zoneLeft.sensorOnline ? "<span class='badge badge-ok'>ONLINE</span>" : "<span class='badge badge-err'>OFFLINE</span>";
-  s += "</div>";
+  s += "</div></div>";
   s += "<div class='box'><div class='lbl'>ความชื้นดิน</div><div class='val'>" + String(zoneLeft.humidity, 1) + " %</div></div>";
   s += "<div class='box'><div class='lbl'>อุณหภูมิดิน</div><div class='val'>" + String(zoneLeft.temperature, 1) + " °C</div></div>";
+  s += "<div class='box'><div class='lbl'>สถานะวาล์วน้ำ (Valve)</div><div class='val' style='font-size:18px;'>";
+  s += valveLeftOpen ? "<span style='color:#4ade80;'>🟢 เปิดอยู่ (OPEN)</span>" : "<span style='color:#94a3b8;'>⚪ ปิดอยู่ (CLOSED)</span>";
+  s += "</div></div>";
   s += "<div class='box'><div class='lbl'>สถานะการรด / DAP</div><div class='val' style='font-size:16px;'>";
   s += (zoneLeft.state == STATE_WATERING ? "💧 WATERING" : (zoneLeft.state == STATE_SOAKING ? "⏳ SOAKING" : (zoneLeft.state == STATE_FAULT ? "🚨 FAULT" : "IDLE")));
   if (configLeft.selectedStage == STAGE_UNPLANTED) {
@@ -256,7 +352,9 @@ static void handleRoot() {
     s += "<div class='box' style='border-color:#ef4444;'><div class='lbl' style='color:#f87171;'>⚠️ Lockout (No-moisture-rise)</div><div style='font-size:13px; color:#fca5a5;'>ระงับรดอัตโนมัติอีก " + String(remainMin) + " นาที</div></div>";
   }
 
-  s += "<div class='box'><div class='lbl'>เวลารดสะสมวันนี้</div><div style='font-size:14px; color:#cbd5e1;'>" + String(zoneLeft.dailyRuntimeSeconds / 60) + " / " + String(configLeft.maxDailyRuntimeMinutes) + " นาที</div></div>";
+  s += "<div class='box'><div style='display:flex; justify-content:space-between; align-items:center;'><span class='lbl'>เวลารดสะสมวันนี้</span>";
+  s += "<form method='POST' action='/resetRuntime' style='margin:0;'><input type='hidden' name='zone' value='0'><button type='submit' class='btn btn-gray' style='margin:0; padding:2px 8px; font-size:11px;' onclick=\"return confirm('รีเซ็ตเวลารดน้ำสะสมแปลงซ้ายให้เป็น 0 นาทีหรือไม่?')\">🔄 รีเซ็ต</button></form></div>";
+  s += "<div style='font-size:14px; color:#cbd5e1;'>" + String(zoneLeft.dailyRuntimeSeconds / 60) + " / " + String(configLeft.maxDailyRuntimeMinutes) + " นาที</div></div>";
 
   s += "<p style='margin:10px 0;'>โหมด: <b>" + String(zoneLeft.mode == MODE_AUTO ? "AUTO" : (zoneLeft.mode == MODE_MANUAL ? "MANUAL" : "OFF")) + "</b></p>";
   s += "<div style='display:flex; gap:4px;'>";
@@ -277,11 +375,16 @@ static void handleRoot() {
   s += "</div>";
 
   // Zone Right Card
-  s += "<div class='card'><div class='card-title'><span>🌿 แปลงขวา (Zone Right)</span>";
+  bool valveRightOpen = Relay_GetChannel(VALVE_RIGHT_CH);
+  s += "<div class='card'><div class='card-title'><span>🌿 แปลงขวา (Zone Right)</span><div>";
+  s += valveRightOpen ? "<span class='badge badge-ok' style='margin-right:6px;'>💧 วาล์ว: เปิด</span>" : "<span class='badge' style='background:#334155; color:#94a3b8; margin-right:6px;'>⚪ วาล์ว: ปิด</span>";
   s += zoneRight.sensorOnline ? "<span class='badge badge-ok'>ONLINE</span>" : "<span class='badge badge-err'>OFFLINE</span>";
-  s += "</div>";
+  s += "</div></div>";
   s += "<div class='box'><div class='lbl'>ความชื้นดิน</div><div class='val'>" + String(zoneRight.humidity, 1) + " %</div></div>";
   s += "<div class='box'><div class='lbl'>อุณหภูมิดิน</div><div class='val'>" + String(zoneRight.temperature, 1) + " °C</div></div>";
+  s += "<div class='box'><div class='lbl'>สถานะวาล์วน้ำ (Valve)</div><div class='val' style='font-size:18px;'>";
+  s += valveRightOpen ? "<span style='color:#4ade80;'>🟢 เปิดอยู่ (OPEN)</span>" : "<span style='color:#94a3b8;'>⚪ ปิดอยู่ (CLOSED)</span>";
+  s += "</div></div>";
   s += "<div class='box'><div class='lbl'>สถานะการรด / DAP</div><div class='val' style='font-size:16px;'>";
   s += (zoneRight.state == STATE_WATERING ? "💧 WATERING" : (zoneRight.state == STATE_SOAKING ? "⏳ SOAKING" : (zoneRight.state == STATE_FAULT ? "🚨 FAULT" : "IDLE")));
   if (configRight.selectedStage == STAGE_UNPLANTED) {
@@ -308,7 +411,9 @@ static void handleRoot() {
     s += "<div class='box' style='border-color:#ef4444;'><div class='lbl' style='color:#f87171;'>⚠️ Lockout (No-moisture-rise)</div><div style='font-size:13px; color:#fca5a5;'>ระงับรดอัตโนมัติอีก " + String(remainMin) + " นาที</div></div>";
   }
 
-  s += "<div class='box'><div class='lbl'>เวลารดสะสมวันนี้</div><div style='font-size:14px; color:#cbd5e1;'>" + String(zoneRight.dailyRuntimeSeconds / 60) + " / " + String(configRight.maxDailyRuntimeMinutes) + " นาที</div></div>";
+  s += "<div class='box'><div style='display:flex; justify-content:space-between; align-items:center;'><span class='lbl'>เวลารดสะสมวันนี้</span>";
+  s += "<form method='POST' action='/resetRuntime' style='margin:0;'><input type='hidden' name='zone' value='1'><button type='submit' class='btn btn-gray' style='margin:0; padding:2px 8px; font-size:11px;' onclick=\"return confirm('รีเซ็ตเวลารดน้ำสะสมแปลงขวาให้เป็น 0 นาทีหรือไม่?')\">🔄 รีเซ็ต</button></form></div>";
+  s += "<div style='font-size:14px; color:#cbd5e1;'>" + String(zoneRight.dailyRuntimeSeconds / 60) + " / " + String(configRight.maxDailyRuntimeMinutes) + " นาที</div></div>";
 
   s += "<p style='margin:10px 0;'>โหมด: <b>" + String(zoneRight.mode == MODE_AUTO ? "AUTO" : (zoneRight.mode == MODE_MANUAL ? "MANUAL" : "OFF")) + "</b></p>";
   s += "<div style='display:flex; gap:4px;'>";
@@ -329,74 +434,111 @@ static void handleRoot() {
   s += "</div>";
   s += "</div>"; // end grid
 
-  // Relay Controls (CH3-CH8)
-  s += "<div class='card' style='margin-top:14px;'><div class='card-title'>⚡ ควบคุมรีเลย์ทั่วไป (CH3 - CH8) <span style='font-size:12px; font-weight:normal; color:#64748b;'>*CH1 และ CH2 สงวนเฉพาะวาล์ว</span></div><div>";
-  for (int i = 3; i <= 8; i++) {
-    bool st = Relay_GetChannel(i);
-    s += "<form method='POST' action='/cmd' style='display:inline;'>";
-    s += "<input type='hidden' name='relay' value='" + String(i) + "'>";
-    s += "<input type='hidden' name='state' value='" + String(st ? 0 : 1) + "'>";
-    s += "<button type='submit' class='btn " + String(st ? "btn-green" : "btn-gray") + "'>CH " + String(i) + ": " + (st ? "ON" : "OFF") + "</button>";
-    s += "</form>";
+  // Auxiliary Relays CH3 - CH8 (Web Portal only)
+  s += "<div class='card'><div class='card-title'><span>🔌 รีเลย์เสริมอเนกประสงค์ (Auxiliary Relays CH3 – CH8)</span></div>";
+  s += "<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px;'>";
+  for (int r = 3; r <= 8; r++) {
+    bool rOn = Relay_GetChannel(r);
+    s += "<div class='box' style='text-align:center;'>";
+    s += "<div class='lbl'>Relay CH" + String(r) + "</div>";
+    s += "<div style='font-weight:bold; margin:4px 0; color:" + String(rOn ? "#4ade80" : "#64748b") + ";'>" + String(rOn ? "ON" : "OFF") + "</div>";
+    s += "<form method='POST' action='/cmd'><input type='hidden' name='relay' value='" + String(r) + "'><input type='hidden' name='state' value='" + String(rOn ? 0 : 1) + "'>";
+    s += "<button type='submit' class='btn " + String(rOn ? "btn-red" : "btn-gray") + "' style='width:100%; font-size:12px;'>" + String(rOn ? "สั่งปิด" : "สั่งเปิด") + "</button></form>";
+    s += "</div>";
   }
   s += "</div></div>";
+
   s += "</div>"; // end Tab 1
 
-  // --- TAB 2: GROWTH STAGES & PRESETS ---
+  // --- TAB 2: SIMPLIFIED CROP & SOIL PRESETS ---
   s += "<div id='GrowthStages' class='tabcontent'>";
   s += "<form method='POST' action='/saveStages'>";
-  s += "<div class='card'><div class='card-title'>🌾 โปรไฟล์ดินและกลุ่มพืช (Soil & Crop Presets)</div>";
-  s += "<div class='guide-box'>💡 <b>คำแนะนำ:</b> เลือกชนิดดินและกลุ่มพืช ระบบจะคำนวณเกณฑ์ Low, High, Critical และจังหวะรดน้ำให้อัตโนมัติ หรือเลือก <b>กำหนดเอง (Custom)</b> เพื่อระบุตัวเลขอิสระ</div>";
+  s += "<div class='card'>";
+  s += "<div class='card-title' style='border-bottom:1px solid #334155; padding-bottom:12px;'>";
+  s += "<span>🌱 ตั้งค่าการรดน้ำแปลงปลูก (เลือกพืช · ดิน · รูปแบบการรดน้ำ)</span>";
+  s += "<div class='zone-sw'>";
+  s += "<button type='button' id='zTab_L' class='active' onclick=\"switchZoneCfg('L')\">🌿 แปลงซ้าย</button>";
+  s += "<button type='button' id='zTab_R' onclick=\"switchZoneCfg('R')\">🌿 แปลงขวา</button>";
+  s += "</div></div>";
+  s += "<div class='guide-box'>✨ <b>ตั้งค่าง่ายใน 3 ขั้นตอน:</b> เลือกแค่ <b>1. พืชที่ปลูก</b>, <b>2. ชนิดดิน</b> และ <b>3. รูปแบบการรดน้ำ</b> ระบบจะคำนวณความชื้นและจังหวะเวลาที่เหมาะสมให้อัตโนมัติ</div>";
 
   for (int z = 0; z < 2; z++) {
     ZoneConfig& cfg = (z == 0) ? configLeft : configRight;
     String pfx = (z == 0) ? "L_" : "R_";
-    s += "<h3 style='color:#38bdf8; margin:16px 0 8px 0; border-bottom:1px solid #334155; padding-bottom:4px;'>" + String(z == 0 ? "🌿 แปลงซ้าย (Zone Left)" : "🌿 แปลงขวา (Zone Right)") + "</h3>";
+    String zId = (z == 0) ? "zPanel_L" : "zPanel_R";
+    String dispStyle = (z == 0) ? "display:block;" : "display:none;";
 
-    s += "<div style='display:grid; grid-template-columns:1fr 1fr; gap:10px;'>";
-    s += "<div><label class='lbl'>1. ชนิดดินในแปลง (Soil Preset)</label><select name='" + pfx + "soil' id='" + pfx + "soil' onchange=\"applyPresets('" + pfx + "')\">";
-    s += "<option value='0' " + String(cfg.soilType == SOIL_SANDY_LOAM ? "selected" : "") + ">ดินร่วนปนทราย (Sandy Loam)</option>";
-    s += "<option value='1' " + String(cfg.soilType == SOIL_LOAM ? "selected" : "") + ">ดินร่วนมาตรฐาน (Loam)</option>";
-    s += "<option value='2' " + String(cfg.soilType == SOIL_CLAY_LOAM ? "selected" : "") + ">ดินเหนียว / ร่วนเหนียว (Clay Loam)</option>";
-    s += "<option value='3' " + String(cfg.soilType == SOIL_COCOPEAT ? "selected" : "") + ">วัสดุปลูก / ขุยมะพร้าว (Cocopeat)</option>";
-    s += "<option value='4' " + String(cfg.soilType == SOIL_CUSTOM ? "selected" : "") + ">กำหนดเองอิสระ (Custom)</option>";
-    s += "</select></div>";
+    s += "<div id='" + zId + "' style='" + dispStyle + "'>";
+    s += "<h3 style='color:#38bdf8; margin:8px 0 12px 0;'>" + String(z == 0 ? "🌿 กำลังตั้งค่า: แปลงซ้าย (Zone Left)" : "🌿 กำลังตั้งค่า: แปลงขวา (Zone Right)") + "</h3>";
 
-    s += "<div><label class='lbl'>2. กลุ่มพืช (Crop Group)</label><select name='" + pfx + "crop' id='" + pfx + "crop' onchange=\"applyPresets('" + pfx + "')\">";
-    s += "<option value='0' " + String(cfg.cropGroup == CROP_LEAFY ? "selected" : "") + ">ผักกินใบและผักสวนครัวทั่วไป</option>";
-    s += "<option value='1' " + String(cfg.cropGroup == CROP_SOLANACEAE ? "selected" : "") + ">พืชตระกูลมะเขือและพริก</option>";
-    s += "<option value='2' " + String(cfg.cropGroup == CROP_VINE_FRUIT ? "selected" : "") + ">พืชเถาเลื้อยและพืชผล (เมล่อน/แตง)</option>";
-    s += "<option value='3' " + String(cfg.cropGroup == CROP_HERB_AROMA ? "selected" : "") + ">สมุนไพรและผักกลิ่นแรง</option>";
-    s += "<option value='4' " + String(cfg.cropGroup == CROP_CUSTOM ? "selected" : "") + ">กำหนดเองอิสระ (Custom)</option>";
-    s += "</select></div>";
+    // Hidden inputs bound to visual cards
+    s += "<input type='hidden' name='" + pfx + "crop' id='" + pfx + "crop' value='" + String((int)cfg.cropGroup) + "'>";
+    s += "<input type='hidden' name='" + pfx + "soil' id='" + pfx + "soil' value='" + String((int)cfg.soilType) + "'>";
+    s += "<input type='hidden' name='" + pfx + "useStages' id='" + pfx + "useStages' value='" + String(cfg.useGrowthStages ? 1 : 0) + "'>";
+    s += "<input type='hidden' name='" + pfx + "name' id='" + pfx + "name' value='" + String(cfg.cropName) + "'>";
+    s += "<input type='hidden' name='" + pfx + "date' id='" + pfx + "date' value='" + String(cfg.startYear) + "-" + String(cfg.startMonth) + "-" + String(cfg.startDay) + "'>";
+
+    // Step 1: Crop Type
+    s += "<div class='step-hdr'><span class='step-num'>1</span><span>คุณกำลังปลูกพืชชนิดไหน?</span></div>";
+    s += "<div class='opt-grid4'>";
+    s += "<div id='" + pfx + "cropCard_0' class='opt-card" + String(cfg.cropGroup == CROP_LEAFY ? " active" : "") + "' onclick=\"pickCrop('" + pfx + "',0)\"><div style='font-size:24px;'>🥬</div><div style='font-weight:bold; margin-top:4px;'>ผักกินใบ / สลัด</div><div class='lbl'>คะน้า, สลัด, กวางตุ้ง, ผักบุ้ง</div><span class='badge badge-ok' style='display:inline-block; margin-top:6px;'>ต้องการน้ำสม่ำเสมอ</span></div>";
+    s += "<div id='" + pfx + "cropCard_1' class='opt-card" + String(cfg.cropGroup == CROP_SOLANACEAE ? " active" : "") + "' onclick=\"pickCrop('" + pfx + "',1)\"><div style='font-size:24px;'>🍅</div><div style='font-weight:bold; margin-top:4px;'>พริก / มะเขือ</div><div class='lbl'>พริกขี้หนู, มะเขือเทศ, มะเขือเปราะ</div><span class='badge badge-warn' style='display:inline-block; margin-top:6px;'>ไม่ชอบน้ำขังแฉะ</span></div>";
+    s += "<div id='" + pfx + "cropCard_2' class='opt-card" + String(cfg.cropGroup == CROP_VINE_FRUIT ? " active" : "") + "' onclick=\"pickCrop('" + pfx + "',2)\"><div style='font-size:24px;'>🍈</div><div style='font-weight:bold; margin-top:4px;'>เมล่อน / พืชเถาแตง</div><div class='lbl'>เมล่อน, แตงกวา, ฟักทอง</div><span class='badge' style='background:#3b0764; color:#d8b4fe; display:inline-block; margin-top:6px;'>คุมน้ำช่วงหวาน</span></div>";
+    s += "<div id='" + pfx + "cropCard_3' class='opt-card" + String(cfg.cropGroup == CROP_HERB_AROMA ? " active" : "") + "' onclick=\"pickCrop('" + pfx + "',3)\"><div style='font-size:24px;'>🌿</div><div style='font-weight:bold; margin-top:4px;'>สมุนไพร / กลิ่นแรง</div><div class='lbl'>กะเพรา, โหระพา, สะระแหน่</div><span class='badge' style='background:#0c4a6e; color:#7dd3fc; display:inline-block; margin-top:6px;'>ทนแล้งปานกลาง</span></div>";
     s += "</div>";
 
-    s += "<label class='lbl'>ชื่อพืช</label><input type='text' name='" + pfx + "name' value='" + String(cfg.cropName) + "'>";
-    s += "<div style='display:grid; grid-template-columns:2fr 1fr; gap:10px;'>";
-    s += "<div><label class='lbl'>วันที่เริ่มปลูก (YYYY-MM-DD)</label><input type='text' name='" + pfx + "date' value='" + String(cfg.startYear) + "-" + String(cfg.startMonth) + "-" + String(cfg.startDay) + "'></div>";
-    s += "<div><label class='lbl'>DAP Offset (วัน)</label><input type='number' name='" + pfx + "offset' value='" + String(cfg.dapOffset) + "'></div>";
-    s += "</div>";
-    s += "<div style='text-align:right; margin:-4px 0 10px 0;'>";
-    s += "<button type='button' class='btn btn-blue' style='font-size:12px; padding:6px 12px;' onclick=\"if(confirm('ยืนยันเริ่มรอบปลูกใหม่สำหรับแปลงนี้วันนี้หรือไม่? (ระบบจะตั้งวันที่เริ่มเป็นวันนี้ DAP=0 และเลือก Stage 1)')) { var f=document.createElement('form'); f.method='POST'; f.action='/resetDap'; var i=document.createElement('input'); i.type='hidden'; i.name='zone'; i.value='" + String(z) + "'; f.appendChild(i); document.body.appendChild(f); f.submit(); }\">🌱 เริ่มรอบปลูกใหม่วันนี้ (Reset DAP = 0)</button>";
+    // Step 2: Soil Type
+    s += "<div class='step-hdr'><span class='step-num'>2</span><span>ใช้ดินชนิดไหนในแปลง?</span></div>";
+    s += "<div class='opt-grid4'>";
+    s += "<div id='" + pfx + "soilCard_1' class='opt-card" + String(cfg.soilType == SOIL_LOAM ? " active" : "") + "' onclick=\"pickSoil('" + pfx + "',1)\"><div style='font-weight:bold;'>🟫 ดินร่วนทั่วไป (แนะนำ)</div><div class='lbl' style='margin-top:4px;'>ดินปลูกมาตรฐาน อุ้มน้ำดี</div></div>";
+    s += "<div id='" + pfx + "soilCard_0' class='opt-card" + String(cfg.soilType == SOIL_SANDY_LOAM ? " active" : "") + "' onclick=\"pickSoil('" + pfx + "',0)\"><div style='font-weight:bold;'>🟨 ดินร่วนปนทราย</div><div class='lbl' style='margin-top:4px;'>น้ำซึมไว แห้งไว</div></div>";
+    s += "<div id='" + pfx + "soilCard_3' class='opt-card" + String(cfg.soilType == SOIL_COCOPEAT ? " active" : "") + "' onclick=\"pickSoil('" + pfx + "',3)\"><div style='font-weight:bold;'>🥥 ขุยมะพร้าว / วัสดุปลูก</div><div class='lbl' style='margin-top:4px;'>สำหรับกระบะปลูก / ถุงปลูก</div></div>";
+    s += "<div id='" + pfx + "soilCard_2' class='opt-card" + String(cfg.soilType == SOIL_CLAY_LOAM ? " active" : "") + "' onclick=\"pickSoil('" + pfx + "',2)\"><div style='font-weight:bold;'>🧱 ดินเหนียว / ร่วนเหนียว</div><div class='lbl' style='margin-top:4px;'>น้ำซึมช้า ระบายน้ำยาก</div></div>";
     s += "</div>";
 
-    // Base Thresholds & Overrides
-    s += "<div style='background:#0f172a; padding:10px; border-radius:6px; margin:8px 0; border:1px solid #334155;'>";
-    s += "<div class='lbl' style='font-weight:bold; color:#38bdf8; margin-bottom:6px;'>เกณฑ์หลัก / Override ทั่วไป</div>";
-    s += "<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:6px;'>";
-    s += "<div><label class='lbl'>เริ่มรด (Low %)</label><input type='number' step='0.1' name='" + pfx + "low' id='" + pfx + "low' value='" + String(cfg.moistureLow, 1) + "'></div>";
-    s += "<div><label class='lbl'>หยุดรด (High %)</label><input type='number' step='0.1' name='" + pfx + "high' id='" + pfx + "high' value='" + String(cfg.moistureHigh, 1) + "'></div>";
+    // Step 3: Watering Mode
+    s += "<div class='step-hdr'><span class='step-num'>3</span><span>ต้องการให้ระบบรดน้ำแบบไหน?</span></div>";
+    s += "<div class='opt-grid2'>";
+    s += "<div id='" + pfx + "modeCard_0' class='opt-card" + String(!cfg.useGrowthStages ? " active" : "") + "' onclick=\"pickStageMode('" + pfx + "',0)\"><div style='font-weight:bold; font-size:15px;'>🟢 รดตามเซนเซอร์คงที่ตลอดรอบปลูก <span class='badge badge-ok'>ง่ายที่สุด</span></div><div class='lbl' style='margin-top:6px; line-height:1.4;'>ไม่ต้องสนใจวันปลูก ไม่ต้องกลัวนาฬิกาเพี้ยน ดินแห้งเมื่อไหร่รดทันที ชื้นพอก็หยุด ดูแลง่ายที่สุด</div></div>";
+    s += "<div id='" + pfx + "modeCard_1' class='opt-card" + String(cfg.useGrowthStages ? " active-purple" : "") + "' onclick=\"pickStageMode('" + pfx + "',1)\"><div style='font-weight:bold; font-size:15px;'>🟣 รดตามอายุพืช 4 ระยะ (Growth Stages) <span class='badge' style='background:#3b0764; color:#d8b4fe;'>ผู้ดูแลเลือกระยะ</span></div><div class='lbl' style='margin-top:6px; line-height:1.4;'>ปรับสูตรน้ำและเวลาเปิด-ปิดตามระยะที่ผู้ดูแลเลือก (ต้นกล้า → กำลังโต → ออกผล → เก็บเกี่ยว) ระบบไม่เลื่อนระยะเอง</div></div>";
+    s += "</div>";
+
+    s += "<div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin:12px 0;'>";
+    s += "<span class='lbl'>วันที่เริ่มรอบปลูกปัจจุบัน: <b>" + String(cfg.startYear) + "-" + String(cfg.startMonth) + "-" + String(cfg.startDay) + "</b></span>";
+    s += "<button type='button' class='btn btn-blue' style='font-size:12px; padding:6px 12px; margin:0;' onclick=\"if(confirm('ยืนยันเริ่มรอบปลูกใหม่สำหรับแปลงนี้วันนี้หรือไม่? (ระบบจะตั้งวันที่เริ่มเป็นวันนี้ DAP=0 และเลือก Stage 1)')) { var f=document.createElement('form'); f.method='POST'; f.action='/resetDap'; var i=document.createElement('input'); i.type='hidden'; i.name='zone'; i.value='" + String(z) + "'; f.appendChild(i); document.body.appendChild(f); f.submit(); }\">🌱 เริ่มรอบปลูกใหม่วันนี้ (Reset DAP = 0)</button>";
+    s += "</div>";
+
+    // Plain Thai Summary Card
+    s += "<div style='background:#090d16; border:1px solid #334155; border-radius:10px; padding:14px; margin:12px 0;'>";
+    s += "<div style='display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:8px;'>";
+    s += "<span style='font-size:12px; font-weight:bold; color:#38bdf8;'>📋 สรุปสูตรการดูแลพืชของแปลงนี้ (ระบบใส่ค่าให้แล้ว)</span>";
+    s += "<span style='font-size:11px; color:#34d399;'>● พร้อมใช้งานทันที</span></div>";
+    s += "<div class='sum-grid'>";
+    s += "<div class='sum-box'><div class='lbl'>เริ่มรดเมื่อดินแห้งถึง</div><div class='val' style='color:#fbbf24; font-size:20px;' id='" + pfx + "dispLow'>" + String(cfg.moistureLow, 1) + "%</div><div class='lbl' style='font-size:10px;'>ความชื้นดิน</div></div>";
+    s += "<div class='sum-box'><div class='lbl'>หยุดรดเมื่อดินชื้นถึง</div><div class='val' style='color:#38bdf8; font-size:20px;' id='" + pfx + "dispHigh'>" + String(cfg.moistureHigh, 1) + "%</div><div class='lbl' style='font-size:10px;'>เป้าหมายพอดี</div></div>";
+    s += "<div class='sum-box'><div class='lbl'>จังหวะการจ่ายน้ำ</div><div class='val' style='color:#34d399; font-size:18px;' id='" + pfx + "dispPulseSoak'>รด " + String(cfg.pulseOnMinutes) + "น. พัก " + String(cfg.soakMinutes) + "น.</div><div class='lbl' style='font-size:10px;'>Pulse & Soak</div></div>";
+    s += "<div class='sum-box'><div class='lbl'>รดสูงสุดต่อวันไม่เกิน</div><div class='val' style='color:#f87171; font-size:20px;' id='" + pfx + "dispMaxDaily'>" + String(cfg.maxDailyRuntimeMinutes) + " นาที</div><div class='lbl' style='font-size:10px;'>โควตาน้ำล้น</div></div>";
+    s += "</div>";
+    s += "<div style='font-size:12px; color:#cbd5e1; background:#1e293b; padding:10px; border-radius:6px;'>💡 <span id='" + pfx + "dispExp'>ระบบคำนวณเกณฑ์น้ำตามชนิดพืชและดินที่เลือกเรียบร้อยแล้ว</span></div>";
+    s += "</div>";
+
+    // Expandable Advanced Section for Technicians
+    s += "<div style='text-align:right; margin-bottom:8px;'>";
+    s += "<button type='button' class='btn btn-gray' style='font-size:12px;' onclick=\"toggleAdv('" + pfx + "')\">⚙️ <span id='" + pfx + "advBtnTxt'>ดูตัวเลขเชิงลึก (สำหรับช่าง)</span></button>";
+    s += "</div>";
+
+    s += "<div id='" + pfx + "advSec' style='display:none; background:#0f172a; padding:12px; border-radius:8px; margin:8px 0; border:1px solid #334155;'>";
+    s += "<div class='lbl' style='font-weight:bold; color:#fbbf24; margin-bottom:8px;'>⚙️ ตารางปรับแต่งตัวเลขขั้นสูง (ระบบกรอกค่าให้อัตโนมัติแล้ว แก้ไขเพิ่มเติมได้)</div>";
+    s += "<div style='display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:6px; margin-bottom:10px;'>";
+    s += "<div><label class='lbl'>เริ่มรด (Low %)</label><input type='number' step='0.1' name='" + pfx + "low' id='" + pfx + "low' value='" + String(cfg.moistureLow, 1) + "' onchange=\"updateSummary('" + pfx + "')\"></div>";
+    s += "<div><label class='lbl'>หยุดรด (High %)</label><input type='number' step='0.1' name='" + pfx + "high' id='" + pfx + "high' value='" + String(cfg.moistureHigh, 1) + "' onchange=\"updateSummary('" + pfx + "')\"></div>";
     s += "<div><label class='lbl'>วิกฤต (Crit %)</label><input type='number' step='0.1' name='" + pfx + "crit' id='" + pfx + "crit' value='" + String(cfg.moistureCritical, 1) + "'></div>";
-    s += "<div><label class='lbl'>Pulse (นาที)</label><input type='number' name='" + pfx + "pulse' id='" + pfx + "pulse' value='" + String(cfg.pulseOnMinutes) + "'></div>";
-    s += "<div><label class='lbl'>Soak (นาที)</label><input type='number' name='" + pfx + "soak' id='" + pfx + "soak' value='" + String(cfg.soakMinutes) + "'></div>";
-    s += "<div><label class='lbl'>Max Daily (นาที)</label><input type='number' name='" + pfx + "maxDaily' id='" + pfx + "maxDaily' value='" + String(cfg.maxDailyRuntimeMinutes) + "'></div>";
+    s += "<div><label class='lbl'>Pulse (นาที)</label><input type='number' name='" + pfx + "pulse' id='" + pfx + "pulse' value='" + String(cfg.pulseOnMinutes) + "' onchange=\"updateSummary('" + pfx + "')\"></div>";
+    s += "<div><label class='lbl'>Soak (นาที)</label><input type='number' name='" + pfx + "soak' id='" + pfx + "soak' value='" + String(cfg.soakMinutes) + "' onchange=\"updateSummary('" + pfx + "')\"></div>";
+    s += "<div><label class='lbl'>Max Daily (นาที)</label><input type='number' name='" + pfx + "maxDaily' id='" + pfx + "maxDaily' value='" + String(cfg.maxDailyRuntimeMinutes) + "' onchange=\"updateSummary('" + pfx + "')\"></div>";
     s += "<div><label class='lbl'>เตือน Temp (°C)</label><input type='number' step='0.1' name='" + pfx + "maxTemp' id='" + pfx + "maxTemp' value='" + String(cfg.maxSoilTemp, 1) + "'></div>";
     s += "<div><label class='lbl'>ตัด Manual (นาที)</label><input type='number' name='" + pfx + "manualCut' id='" + pfx + "manualCut' value='" + String(cfg.manualDurationMinutes) + "'></div>";
-    s += "</div></div>";
-
-    s += "<label class='lbl'>การใช้ระบบ 4 ช่วงอายุ (Growth Stages)</label>";
-    s += "<select name='" + pfx + "useStages'><option value='0' " + String(!cfg.useGrowthStages ? "selected" : "") + ">ปิด (ใช้ค่าคงที่ด้านบนตลอดรอบปลูก)</option>";
-    s += "<option value='1' " + String(cfg.useGrowthStages ? "selected" : "") + ">เปิดใช้งาน 4 Stages อัตโนมัติตามอายุ DAP</option></select>";
+    s += "</div>";
 
     for (int i = 0; i < 4; i++) {
       s += "<div class='box' style='margin-bottom:8px;'><div class='lbl' style='font-weight:bold; color:#38bdf8;'>ระยะที่ " + String(i+1) + "</div>";
@@ -409,9 +551,11 @@ static void handleRoot() {
       s += "<div><label class='lbl'>Max Daily (น.)</label><input type='number' name='" + pfx + "s" + String(i) + "_maxDaily' id='" + pfx + "s" + String(i) + "_maxDaily' value='" + String(cfg.stages[i].maxDailyRuntimeMinutes) + "'></div>";
       s += "</div></div>";
     }
+    s += "</div>"; // end advSec
+    s += "</div>"; // end zone panel
   }
 
-  s += "<button type='submit' class='btn btn-green' style='width:100%; margin-top:10px;'>💾 บันทึกโปรไฟล์พืชและ Stages</button>";
+  s += "<button type='submit' class='btn btn-green' style='width:100%; margin-top:10px; padding:12px; font-size:15px;'>💾 บันทึกและเริ่มทำงานทันที (คลิกเดียว)</button>";
   s += "</div></form></div>";
 
   // --- TAB 3: NETWORK & SECURITY ---
@@ -482,7 +626,6 @@ static void handleCmd() {
     if (server.hasArg("state")) {
       int st = server.arg("state").toInt();
       Relay_SetChannel(r, st == 1);
-      BlynkManager_SendControlState();
     }
   }
 
@@ -601,7 +744,7 @@ static void handleSaveStages() {
   tempL.cropGroup = (CropGroup)server.arg("L_crop").toInt();
   strncpy(tempL.cropName, server.arg("L_name").c_str(), sizeof(tempL.cropName) - 1);
   sscanf(server.arg("L_date").c_str(), "%d-%d-%d", &tempL.startYear, &tempL.startMonth, &tempL.startDay);
-  tempL.dapOffset = server.arg("L_offset").toInt();
+  tempL.dapOffset = 0;
   tempL.moistureLow = server.arg("L_low").toFloat();
   tempL.moistureHigh = server.arg("L_high").toFloat();
   tempL.moistureCritical = server.arg("L_crit").toFloat();
@@ -625,7 +768,7 @@ static void handleSaveStages() {
   tempR.cropGroup = (CropGroup)server.arg("R_crop").toInt();
   strncpy(tempR.cropName, server.arg("R_name").c_str(), sizeof(tempR.cropName) - 1);
   sscanf(server.arg("R_date").c_str(), "%d-%d-%d", &tempR.startYear, &tempR.startMonth, &tempR.startDay);
-  tempR.dapOffset = server.arg("R_offset").toInt();
+  tempR.dapOffset = 0;
   tempR.moistureLow = server.arg("R_low").toFloat();
   tempR.moistureHigh = server.arg("R_high").toFloat();
   tempR.moistureCritical = server.arg("R_crit").toFloat();
@@ -732,6 +875,32 @@ static void handleFactoryReset() {
   ESP.restart();
 }
 
+static void handleResetRuntime() {
+  if (!checkAuth()) return;
+  int z = server.hasArg("zone") ? server.arg("zone").toInt() : -1;
+  if (z == 0) {
+    zoneLeft.dailyRuntimeSeconds = 0;
+    zoneLeft.lockoutUntilMs = 0; // ปลด lockout ด้วยหากมี
+    BlynkManager_SendStatusData(0);
+    AppLog_Log("RESET", "Zone Left daily watering runtime reset to 0 min by user");
+  } else if (z == 1) {
+    zoneRight.dailyRuntimeSeconds = 0;
+    zoneRight.lockoutUntilMs = 0;
+    BlynkManager_SendStatusData(1);
+    AppLog_Log("RESET", "Zone Right daily watering runtime reset to 0 min by user");
+  } else {
+    ZoneControl_ResetDailyRuntime();
+  }
+  
+  RTCDateTime now;
+  if (RTC_GetTime(now)) {
+    int dateInt = now.year * 10000 + now.month * 100 + now.day;
+    Storage_SaveDailyRuntime(zoneLeft.dailyRuntimeSeconds, zoneRight.dailyRuntimeSeconds, dateInt);
+  }
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
 void WebPortal_Init() {
   const char* authHeaders[] = {"Authorization"};
   server.collectHeaders(authHeaders, 1);
@@ -744,6 +913,7 @@ void WebPortal_Init() {
   server.on("/downloadLog", HTTP_GET, handleDownloadLog);
   server.on("/clearLog", HTTP_POST, handleClearLog);
   server.on("/resetDap", HTTP_POST, handleResetDap);
+  server.on("/resetRuntime", HTTP_POST, handleResetRuntime);
   server.begin();
   Serial.println("[WebPortal] HTTP Server started with Basic Auth (Authorization header collected).");
 }
