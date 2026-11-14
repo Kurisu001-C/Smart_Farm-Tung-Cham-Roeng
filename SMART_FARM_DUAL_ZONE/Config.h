@@ -30,8 +30,8 @@
 #define DEFAULT_AP_SSID     "ESP32-SMART-FARM"
 #define DEFAULT_AP_PASS     "farm123456"
 
-#define BLYNK_TEMPLATE_ID   "TMPL6ajFMsWqd"
-#define BLYNK_TEMPLATE_NAME "New Template"
+#define BLYNK_TEMPLATE_ID   "TMPL6FTB7ILMw"   // Blynk template "ARSA2026"
+#define BLYNK_TEMPLATE_NAME "ARSA2026"
 #define FIRMWARE_VERSION    "2.0.1"   // 2.0.1: manual valve respects Master, no dropped status sync, preset on empty zone starts today, growth stage chosen by caretaker (no auto-advance)
 
 /*****************************************************************************
