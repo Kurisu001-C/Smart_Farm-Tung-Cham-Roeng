@@ -166,6 +166,7 @@
   .ov-meta span { display: flex; align-items: center; gap: 6px; }
   .ov-meta svg.i { width: 14px; height: 14px; }
   .ov-meta .is-on { color: var(--blue); font-weight: 400; }
+  .ov-meta .is-warn { color: var(--orange-ink); font-weight: 400; }
 
   /* ---------- Segmented ---------- */
   .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; background: #E6ECEA; border-radius: 14px; padding: 4px; }
@@ -205,6 +206,7 @@
   .hint { align-self: flex-start; font-size: 12px; padding: 3px 10px; border-radius: 99px; }
   .hint.temp { background: var(--orange-soft); color: var(--orange); }
   .hint.hum { background: var(--blue-soft); color: var(--blue); }
+  .hint.off { background: var(--orange-soft); color: var(--orange-ink); }
 
   /* Valve */
   .valve-body { display: flex; align-items: center; gap: 14px; background: var(--bg); border-radius: 18px; padding: 12px; transition: background .25s; }
@@ -701,6 +703,7 @@ const DATASTREAMS = {
   Stage_L:     { pin: 'V16' }, Stage_R:     { pin: 'V36' },
   State_L:     { pin: 'V3',  optional: true }, State_R:  { pin: 'V23', optional: true },
   Preset_L:    { pin: 'V15', optional: true }, Preset_R: { pin: 'V35', optional: true },
+  SensorOnline_L: { pin: 'V14', optional: true }, SensorOnline_R: { pin: 'V34', optional: true },   // 1 = เซนเซอร์ตอบ, 0 = ไม่ตอบ
   MsgQuota:    { pin: 'V50', optional: true }   // จำนวนข้อความที่บอร์ดส่งวันนี้ (อัปเดตทุก 5 นาที)
 };
 const ALL_NAMES = Object.keys(DATASTREAMS);
@@ -709,7 +712,8 @@ function zoneStreams(suffix) {
   return {
     hum: 'Humidity_' + suffix, temp: 'Temp_' + suffix, mode: 'Mode_' + suffix,
     valve: 'Valve_' + suffix, dap: 'DAP_' + suffix, daily: 'DailyTime_' + suffix,
-    stage: 'Stage_' + suffix, state: 'State_' + suffix, preset: 'Preset_' + suffix
+    stage: 'Stage_' + suffix, state: 'State_' + suffix, preset: 'Preset_' + suffix,
+    online: 'SensorOnline_' + suffix
   };
 }
 const ZONES = {
@@ -795,9 +799,9 @@ const bridge = hasBridge ? new BlynkBridge() : makeStub();
 function makeStub() {
   const demo = {
     Master: '1', MsgQuota: '420',
-    Humidity_L: '62', Temp_L: '29.5', Mode_L: '2', Valve_L: '1', DAP_L: '23', DailyTime_L: '18', Stage_L: '3', State_L: 'WATERING', Preset_L: '111',
-    Humidity_R: '41', Temp_R: '31.2', Mode_R: '1', Valve_R: '0', DAP_R: '0',  DailyTime_R: '0',  Stage_R: '0', State_R: 'IDLE'
-    // Preset_R ไม่ได้ใส่ → ทดสอบกรณีไม่มี datastream Preset
+    Humidity_L: '62', Temp_L: '29.5', Mode_L: '2', Valve_L: '1', DAP_L: '23', DailyTime_L: '18', Stage_L: '3', State_L: 'WATERING', Preset_L: '111', SensorOnline_L: '1',
+    Humidity_R: '0',  Temp_R: '0',    Mode_R: '1', Valve_R: '0', DAP_R: '0',  DailyTime_R: '0',  Stage_R: '0', State_R: 'IDLE', SensorOnline_R: '0'
+    // Preset_R ไม่ได้ใส่ → ทดสอบกรณีไม่มี datastream Preset · SensorOnline_R = 0 → ทดสอบกรณีเซนเซอร์ไม่ตอบ
   };
   const order = ALL_NAMES.filter(n => n in demo).reverse();
   let callbacks = {};
@@ -898,6 +902,10 @@ function getMode(key) {
   return (m === MODE.AUTO || m === MODE.MANUAL) ? m : MODE.OFF;
 }
 function isValveOpen(key) { return zoneNum(key, 'valve') === 1; }    // สถานะรีเลย์จริงจากบอร์ด
+/** เซนเซอร์ไม่ตอบ: true เฉพาะเมื่อบอร์ดส่ง SensorOnline_* = 0 มา (ไม่ได้ผูก datastream นี้ = ถือว่าปกติ) */
+function isSensorOffline(key) { return zoneNum(key, 'online') === 0; }
+/** ค่าเซนเซอร์ที่ใช้แสดงผล: null เมื่อเซนเซอร์ไม่ตอบ (บอร์ดยังส่ง 0.0 ค้างมา ไม่ใช่ค่าจริง) */
+function sensorNum(key, field) { return isSensorOffline(key) ? null : zoneNum(key, field); }
 function getStage(key) {
   const s = zoneNum(key, 'stage');
   return s === null ? STAGE.UNPLANTED : clamp(Math.round(s), STAGE.UNPLANTED, STAGE.LAST);
@@ -1175,7 +1183,7 @@ function renderMain(masterOn) {
   renderQuota();
   ZONE_KEYS.forEach(key => {
     renderOverview(key);
-    $(ZONES[key].nowId).textContent = fmt(zoneNum(key, 'hum'), 0);
+    $(ZONES[key].nowId).textContent = fmt(sensorNum(key, 'hum'), 0);
     drawChart($(ZONES[key].chartId), store.history[key], ZONES[key].color, 'grad-' + key);
   });
   document.querySelectorAll('[data-action="range"]').forEach(b =>
@@ -1216,13 +1224,15 @@ function renderMainAlerts() {
 function renderOverview(key) {
   const card = document.querySelector('.ov.' + key);
   const set = (field, text) => { card.querySelector('[data-ov="' + field + '"]').textContent = text; };
-  const temp = zoneNum(key, 'temp');
+  const offline = isSensorOffline(key);
+  const temp = sensorNum(key, 'temp');
   const open = isValveOpen(key);
   const stage = getStage(key);
   const dap = zoneNum(key, 'dap');
 
-  set('hum', fmt(zoneNum(key, 'hum'), 0));
-  set('temp', temp === null ? '–' : temp.toFixed(1) + ' °C');
+  set('hum', fmt(sensorNum(key, 'hum'), 0));
+  set('temp', offline ? 'เซนเซอร์ไม่ตอบ' : temp === null ? '–' : temp.toFixed(1) + ' °C');
+  card.querySelector('[data-ov="temp"]').parentElement.classList.toggle('is-warn', offline);
   set('valve', (open ? 'กำลังรดน้ำ' : 'วาล์วปิด') + ' · ' + (isMasterOn() ? modeLabel(getMode(key)) : 'ระบบหลักปิด'));
   set('stage', stage === STAGE.UNPLANTED ? 'ยังไม่ได้ปลูก' : 'ระยะ ' + stage + (dap === null ? '' : ' · ' + Math.round(dap) + ' วัน'));
   card.querySelector('[data-ov="valveWrap"]').classList.toggle('is-on', open);
@@ -1249,11 +1259,16 @@ function zoneStatus(key) {
   const mode = getMode(key);
   // FAULT ในโหมดอัตโนมัติ = เซนเซอร์ไม่ตอบ (ระบบกลับมาเองเมื่อเซนเซอร์ปกติ)
   // FAULT ในโหมดสั่งเอง = วาล์วเปิดนานเกินกำหนด ระบบตัดน้ำให้ (Failsafe)
-  if (state === ZONE_STATE.FAULT && mode === MODE.AUTO) {
-    return { tone: 'warn', title: 'เซนเซอร์ไม่ตอบ หยุดรดอัตโนมัติ', text: 'ตรวจสายเซนเซอร์และไฟเลี้ยง ระบบจะกลับมารดเองเมื่อเซนเซอร์อ่านค่าได้' };
-  }
   if (state === ZONE_STATE.FAULT && mode === MODE.MANUAL) {
     return { tone: 'warn', title: 'ระบบตัดน้ำเพื่อความปลอดภัย', text: 'วาล์วเปิดนานเกินกำหนด ตรวจท่อและวาล์ว แล้วเปิดน้ำใหม่ได้' };
+  }
+  // เซนเซอร์ไม่ตอบ: รู้จาก SensorOnline_* = 0 (ทุกโหมด) หรือ State = FAULT ในโหมดอัตโนมัติ (กรณีไม่ได้ผูก SensorOnline_*)
+  if (isSensorOffline(key) || (state === ZONE_STATE.FAULT && mode === MODE.AUTO)) {
+    return {
+      tone: 'warn',
+      title: mode === MODE.AUTO && getStage(key) !== STAGE.UNPLANTED ? 'เซนเซอร์ไม่ตอบ หยุดรดอัตโนมัติ' : 'เซนเซอร์ไม่ตอบ',
+      text: 'ตรวจสาย RS485 และไฟเลี้ยงเซนเซอร์ ค่าความชื้น/อุณหภูมิจะกลับมาเมื่อเซนเซอร์อ่านค่าได้'
+    };
   }
   if (!isMasterOn()) return null;   // ระบบหลักปิด: มีแจ้งเตือนในทุกการ์ดแล้ว ไม่ต้องซ้ำ
   if (mode === MODE.AUTO && getStage(key) === STAGE.UNPLANTED) {
@@ -1276,15 +1291,18 @@ function renderZoneBanner(key) {
 }
 
 function renderSensors(key) {
-  const hum = zoneNum(key, 'hum');
-  const temp = zoneNum(key, 'temp');
+  const offline = isSensorOffline(key);
+  const hum = sensorNum(key, 'hum');
+  const temp = sensorNum(key, 'temp');
   const pct = hum === null ? 0 : clamp(hum, 0, 100);
 
   $('hum').textContent = fmt(hum, 0);
   $('humRing').setAttribute('stroke-dashoffset', String(163.4 * (1 - pct / 100)));
-  $('humHint').textContent = hum === null ? 'ไม่มีข้อมูล' : hum < 35 ? 'ดินแห้ง' : hum <= 75 ? 'ชื้นพอดี' : 'ชื้นมาก';
+  $('humHint').textContent = offline ? 'เซนเซอร์ไม่ตอบ' : hum === null ? 'ไม่มีข้อมูล' : hum < 35 ? 'ดินแห้ง' : hum <= 75 ? 'ชื้นพอดี' : 'ชื้นมาก';
   $('temp').textContent = fmt(temp, 1);
-  $('tempHint').textContent = temp === null ? 'ไม่มีข้อมูล' : temp >= 35 ? 'ร้อนมาก' : temp >= 30 ? 'ค่อนข้างร้อน' : temp >= 20 ? 'เหมาะสม' : 'ค่อนข้างเย็น';
+  $('tempHint').textContent = offline ? 'เซนเซอร์ไม่ตอบ' : temp === null ? 'ไม่มีข้อมูล' : temp >= 35 ? 'ร้อนมาก' : temp >= 30 ? 'ค่อนข้างร้อน' : temp >= 20 ? 'เหมาะสม' : 'ค่อนข้างเย็น';
+  $('humHint').classList.toggle('off', offline);
+  $('tempHint').classList.toggle('off', offline);
 }
 
 function renderValve(key, mode, masterOn) {
