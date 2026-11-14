@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Smart Farm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!--
+  Smart Farm Dual Zone · Blynk HTML Widget (มือถือ)
+  ใช้คู่กับ Firmware SMART_FARM_DUAL_ZONE 2.0.1+ (อ้างอิงพฤติกรรมจาก BlynkManager.cpp / ZoneControl.cpp / Storage.cpp)
+
+  วิธี Debug:
+    - เปิดด้วย ?debug=1 หรือแตะโลโก้ 5 ครั้งติดกัน → จะมีการ์ด "Debug" ท้ายหน้าหลัก
+      แสดงว่า datastream ไหนจับคู่ได้ / ค่าล่าสุด / คำสั่งที่ส่งออก
+    - ใน DevTools Console พิมพ์ SmartFarm เพื่อดู state ทั้งหมด
+    - เปิดไฟล์นี้นอก Blynk ได้เลย จะใช้ข้อมูลจำลอง (makeStub) ให้ดูหน้าตา
+-->
+<style>
+  :root {
+    --bg: #F2F6F4;
+    --card: #FFFFFF;
+    --ink: #10231F;
+    --muted: #6B7C78;
+    --line: #E6EDEA;
+    --teal: #0E7469;
+    --teal-dark: #0A4A43;
+    --teal-deep: #073530;
+    --teal-soft: #E1F2EE;
+    --lime: #C4EB6E;
+    --blue: #2F7BE0;
+    --blue-soft: #E7F0FD;
+    --cyan: #13A39A;
+    --cyan-soft: #DFF5F3;
+    --orange: #E0702B;
+    --orange-ink: #A2501C;
+    --orange-soft: #FDEEE3;
+    --grey: #97A6A2;
+    --shadow: 0 1px 2px rgba(16,35,31,.04), 0 6px 20px rgba(16,35,31,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Kanit", "Noto Sans Thai", -apple-system, "Segoe UI", sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+  }
+  button, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  [hidden] { display: none !important; }
+  .app {
+    max-width: 480px; margin: 0 auto;
+    padding: 16px 16px calc(104px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  /* ---------- Header ---------- */
+  .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 2px 2px; }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .logo { width: 44px; height: 44px; border: none; padding: 0; border-radius: 14px; background: linear-gradient(145deg, var(--teal), var(--teal-dark)); color: var(--lime); display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 14px rgba(14,116,105,.28); }
+  .logo svg.i { width: 22px; height: 22px; }
+  .header h1 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: .2px; line-height: 1.15; }
+  .header small { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 300; }
+  .header small svg.i { width: 13px; height: 13px; stroke-width: 2; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .pill i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+  .pill.on { background: var(--teal-soft); color: var(--teal); }
+  .pill.on i { box-shadow: 0 0 0 3px rgba(14,116,105,.15); animation: pulse 2s infinite; }
+  .pill.off { background: #EAEEEC; color: #5E6C69; }
+  .pill.blue { background: var(--blue-soft); color: var(--blue); }
+  .pill.warn { background: var(--orange-soft); color: var(--orange-ink); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 5px rgba(14,116,105,0); } }
+
+  .panel { display: flex; flex-direction: column; gap: 14px; animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .card { background: var(--card); border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .card-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .card-title .ico { width: 36px; height: 36px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .card-title .ico svg.i { width: 18px; height: 18px; }
+  .ico.blue { background: var(--blue-soft); color: var(--blue); }
+  .ico.cyan { background: var(--cyan-soft); color: var(--cyan); }
+  .ico.teal { background: var(--teal-soft); color: var(--teal); }
+  .card-head h2 { margin: 0; font-size: 15px; font-weight: 500; }
+  .card-head small { display: block; color: var(--muted); font-size: 12px; font-weight: 300; }
+  .section-label { margin: 6px 2px -4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+
+  /* ---------- Buttons ---------- */
+  .btn { min-height: 44px; border: none; border-radius: 14px; padding: 0 14px; font-weight: 500; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .1s, opacity .2s; }
+  .btn:active { transform: scale(.98); }
+  .btn svg.i { width: 18px; height: 18px; }
+  .btn.primary { background: var(--teal); color: #FFFFFF; box-shadow: 0 6px 14px rgba(14,116,105,.25); }
+  .btn.ghost { background: var(--bg); color: var(--teal); }
+  .btn.warn { background: var(--orange); color: #FFFFFF; }
+  .btn.small { min-height: 34px; padding: 0 12px; font-size: 13px; border-radius: 11px; }
+  .btn.small svg.i { width: 15px; height: 15px; }
+  .btn-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ---------- Switch ---------- */
+  .switch { width: 58px; height: 34px; flex-shrink: 0; border: none; border-radius: 99px; padding: 3px; background: #CCD6D3; display: flex; align-items: center; transition: background .25s; }
+  .switch span { width: 28px; height: 28px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 5px rgba(0,0,0,.2); transition: transform .25s cubic-bezier(.4,1.4,.6,1); }
+  .switch[aria-checked="true"] { background: var(--lime); }
+  .switch[aria-checked="true"] span { transform: translateX(24px); }
+  .switch.blue[aria-checked="true"] { background: var(--blue); }
+  .switch:disabled, .seg button:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ---------- Banner (สถานะ/แจ้งเตือน) ---------- */
+  .banner { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 18px; font-size: 13px; }
+  .banner svg.i { width: 18px; height: 18px; margin-top: 1px; }
+  .banner b { font-weight: 500; display: block; }
+  .banner.info { background: var(--blue-soft); color: #1D58AE; }
+  .banner.ok { background: var(--teal-soft); color: var(--teal-dark); }
+  .banner.warn { background: var(--orange-soft); color: var(--orange-ink); }
+
+  /* ---------- Master hero ---------- */
+  .master {
+    position: relative; overflow: hidden;
+    border-radius: 24px; padding: 18px;
+    background: linear-gradient(150deg, #E8EEEC, #DDE5E2); color: var(--ink);
+    display: flex; flex-direction: column; gap: 16px;
+    transition: background .3s, color .3s;
+  }
+  .master::before, .master::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; }
+  .master::before { width: 200px; height: 200px; right: -60px; top: -90px; background: rgba(255,255,255,.35); }
+  .master::after { width: 120px; height: 120px; right: 40px; bottom: -80px; background: rgba(255,255,255,.22); }
+  .master.is-on { background: linear-gradient(150deg, var(--teal) 0%, var(--teal-dark) 70%, var(--teal-deep) 100%); color: #FFFFFF; box-shadow: 0 10px 26px rgba(10,74,67,.3); }
+  .master.is-on::before { background: rgba(196,235,110,.10); }
+  .master.is-on::after { background: rgba(255,255,255,.06); }
+  .master-row { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; }
+  .master-icon { width: 50px; height: 50px; border-radius: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: rgba(255,255,255,.7); color: #5E6C69; }
+  .master-icon svg.i { width: 24px; height: 24px; stroke-width: 2.1; }
+  .master.is-on .master-icon { background: rgba(255,255,255,.12); color: var(--lime); }
+  .master-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .master-text small { font-size: 12px; font-weight: 300; opacity: .75; }
+  .master-text strong { font-size: 19px; font-weight: 500; }
+  .master-sub { position: relative; z-index: 1; font-size: 12px; font-weight: 300; opacity: .85; display: flex; align-items: center; gap: 6px; }
+  .master-sub svg.i { width: 14px; height: 14px; }
+
+  /* ---------- Overview ---------- */
+  .overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ov { border: none; text-align: left; background: var(--card); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); transition: transform .15s; }
+  .ov:active { transform: scale(.98); }
+  .ov-top { display: flex; justify-content: space-between; align-items: center; font-weight: 500; font-size: 14px; }
+  .ov-top svg.i { width: 16px; height: 16px; color: var(--grey); }
+  .ov-val { display: flex; align-items: baseline; gap: 3px; }
+  .ov-val b { font-size: 30px; font-weight: 500; line-height: 1; }
+  .ov-val em { font-style: normal; font-size: 13px; color: var(--muted); }
+  .ov.left .ov-val b { color: var(--blue); }
+  .ov.right .ov-val b { color: var(--cyan); }
+  .ov-meta { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); font-weight: 300; }
+  .ov-meta span { display: flex; align-items: center; gap: 6px; }
+  .ov-meta svg.i { width: 14px; height: 14px; }
+  .ov-meta .is-on { color: var(--blue); font-weight: 400; }
+
+  /* ---------- Segmented ---------- */
+  .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; background: #E6ECEA; border-radius: 14px; padding: 4px; }
+  .seg button { min-height: 38px; border: none; border-radius: 11px; background: transparent; color: var(--muted); font-weight: 400; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background .2s, color .2s; }
+  .seg button svg.i { width: 16px; height: 16px; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--teal); font-weight: 500; box-shadow: 0 1px 4px rgba(16,35,31,.1); }
+
+  /* ---------- Chart ---------- */
+  .now { display: flex; align-items: baseline; gap: 2px; }
+  .now b { font-size: 28px; font-weight: 500; line-height: 1; }
+  .now em { font-style: normal; color: var(--muted); font-size: 13px; }
+  .now.left b { color: var(--blue); }
+  .now.right b { color: var(--cyan); }
+  .chart { width: 100%; height: auto; display: block; }
+  .chart text { font-family: inherit; font-size: 10px; font-weight: 300; fill: var(--grey); }
+
+  /* ---------- Zone page ---------- */
+  .plot-head { display: flex; justify-content: space-between; align-items: center; padding: 4px 2px 0; }
+  .plot-head h2 { margin: 0; font-size: 22px; font-weight: 600; }
+  .plot-head small { display: block; color: var(--muted); font-size: 12px; font-weight: 300; }
+  .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .metric { background: var(--card); border-radius: 22px; padding: 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
+  .metric-top { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .metric-ico { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .metric-ico svg.i { width: 17px; height: 17px; }
+  .metric.hum .metric-ico { background: var(--blue-soft); color: var(--blue); }
+  .metric.temp .metric-ico { background: var(--orange-soft); color: var(--orange); }
+  .metric b { font-size: 30px; font-weight: 500; line-height: 1; }
+  .metric b em { font-style: normal; font-size: 14px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .metric.hum b { color: var(--blue); }
+  .metric.temp b { color: var(--orange); }
+  .ring-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .ring { width: 54px; height: 54px; transform: rotate(-90deg); flex-shrink: 0; }
+  .ring circle { fill: none; stroke-width: 6; }
+  .ring .bg { stroke: var(--blue-soft); }
+  .ring .fg { stroke: var(--blue); stroke-linecap: round; transition: stroke-dashoffset .5s ease; }
+  .hint { align-self: flex-start; font-size: 12px; padding: 3px 10px; border-radius: 99px; }
+  .hint.temp { background: var(--orange-soft); color: var(--orange); }
+  .hint.hum { background: var(--blue-soft); color: var(--blue); }
+
+  /* Valve */
+  .valve-body { display: flex; align-items: center; gap: 14px; background: var(--bg); border-radius: 18px; padding: 12px; transition: background .25s; }
+  .valve-body.is-open { background: var(--blue-soft); }
+  .valve-ico { width: 50px; height: 50px; border-radius: 15px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: #DDE4E1; color: #5E6C69; transition: background .25s, color .25s; }
+  .valve-ico svg.i { width: 24px; height: 24px; }
+  .valve-body.is-open .valve-ico { background: var(--blue); color: #FFFFFF; box-shadow: 0 6px 14px rgba(47,123,224,.35); }
+  .valve-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .valve-text strong { font-size: 16px; font-weight: 500; }
+  .valve-text small { color: var(--muted); font-size: 12px; font-weight: 300; }
+  .runtime { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .runtime-text small { display: block; color: var(--muted); font-size: 12px; font-weight: 300; }
+  .runtime-text b { font-size: 20px; font-weight: 500; color: var(--blue); }
+  .runtime-text b em { font-style: normal; font-size: 13px; font-weight: 300; color: var(--muted); margin-left: 3px; }
+  .note { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--orange-ink); background: var(--orange-soft); border-radius: 14px; padding: 10px 12px; }
+  .note svg.i { width: 16px; height: 16px; margin-top: 1px; }
+
+  /* Growth stages */
+  .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: relative; }
+  .steps::before { content: ""; position: absolute; top: 25px; left: 12.5%; right: 12.5%; height: 3px; border-radius: 3px; background: var(--line); }
+  .steps .bar { position: absolute; top: 25px; left: 12.5%; height: 3px; border-radius: 3px; background: var(--teal); width: 0; transition: width .4s ease; }
+  .step { position: relative; border: none; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+  .step:active .step-ico { transform: scale(.94); }
+  .step.suggested:not(.current) .step-ico { border-style: dashed; border-color: var(--teal); color: var(--teal); }
+  .step-ico { width: 52px; height: 52px; border-radius: 50%; background: #FFFFFF; border: 2px solid var(--line); color: #B3C0BC; display: flex; align-items: center; justify-content: center; transition: all .25s; }
+  .step-ico svg.i { width: 24px; height: 24px; stroke-width: 1.7; }
+  .step span { font-size: 11px; color: var(--muted); line-height: 1.3; font-weight: 300; }
+  .step small { font-size: 10px; color: var(--grey); font-weight: 300; min-height: 13px; }
+  .step.done .step-ico { background: var(--teal-soft); border-color: var(--teal-soft); color: var(--teal); }
+  .step.current .step-ico { background: var(--teal); border-color: var(--teal); color: #FFFFFF; box-shadow: 0 0 0 5px var(--teal-soft); }
+  .step.current span { color: var(--teal); font-weight: 500; }
+  .tap-hint { margin: 10px 0 0; text-align: center; font-size: 11px; color: var(--grey); font-weight: 300; }
+
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stat { position: relative; overflow: hidden; background: linear-gradient(150deg, var(--teal), var(--teal-dark)); color: #FFFFFF; border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .stat.alt { background: linear-gradient(150deg, #2F7BE0, #1D58AE); }
+  .stat > svg.i { position: absolute; right: 10px; top: 10px; width: 18px; height: 18px; opacity: .6; }
+  .stat small { font-size: 12px; font-weight: 300; opacity: .9; }
+  .stat b { font-size: 28px; font-weight: 500; line-height: 1.15; }
+  .stat b em { font-style: normal; font-size: 13px; font-weight: 300; margin-left: 4px; }
+  .stat .sub { font-size: 11px; font-weight: 300; opacity: .8; }
+  .meter { height: 8px; border-radius: 99px; background: var(--teal-soft); overflow: hidden; }
+  .meter span { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--teal); transition: width .4s ease; }
+  .meter.warn { background: var(--orange-soft); }
+  .meter.warn span { background: var(--orange); }
+  .ico.warn { background: var(--orange-soft); color: var(--orange); }
+  .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 20px 12px; border: 1.5px dashed #D3DDD9; border-radius: 18px; }
+  .empty-ico { width: 56px; height: 56px; border-radius: 50%; background: var(--teal-soft); color: var(--teal); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .empty-ico svg.i { width: 26px; height: 26px; }
+  .empty strong { font-size: 16px; font-weight: 500; }
+  .empty small { color: var(--muted); font-size: 12px; font-weight: 300; max-width: 260px; }
+  .empty .btn { margin-top: 8px; }
+
+  /* Recipe (สูตรการรดน้ำ) */
+  .recipe { display: flex; flex-direction: column; gap: 8px; }
+  .recipe-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--bg); }
+  .emo { width: 38px; height: 38px; border-radius: 12px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .recipe-row div { min-width: 0; }
+  .recipe-row small { display: block; color: var(--muted); font-size: 11px; font-weight: 300; }
+  .recipe-row b { font-weight: 500; font-size: 14px; }
+  .recipe-src { font-size: 11px; color: var(--grey); font-weight: 300; text-align: center; margin: -4px 0 0; }
+
+  /* ---------- Bottom sheet ---------- */
+  .sheet-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(7,53,48,.45); display: flex; align-items: flex-end; justify-content: center; animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .sheet { width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; background: var(--card); border-radius: 26px 26px 0 0; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 16px; animation: slideUp .28s cubic-bezier(.2,.9,.3,1); }
+  @keyframes slideUp { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+  .sheet-grip { width: 40px; height: 4px; border-radius: 4px; background: var(--line); align-self: center; }
+  .sheet h3 { margin: 0; font-size: 18px; font-weight: 600; }
+  .sheet p { margin: 0; color: var(--muted); font-size: 13px; font-weight: 300; }
+  .q { display: flex; flex-direction: column; gap: 8px; }
+  .q-title { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; }
+  .q-num { width: 22px; height: 22px; border-radius: 50%; background: var(--teal); color: #FFFFFF; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .choice { border: 1.5px solid var(--line); background: var(--card); border-radius: 16px; padding: 10px; text-align: left; display: flex; gap: 10px; align-items: center; min-height: 64px; transition: border-color .2s, background .2s; }
+  .choice .emo { background: var(--bg); width: 34px; height: 34px; font-size: 18px; }
+  .choice div { min-width: 0; display: flex; flex-direction: column; }
+  .choice b { font-weight: 500; font-size: 13px; line-height: 1.25; }
+  .choice small { font-size: 11px; color: var(--muted); font-weight: 300; line-height: 1.3; }
+  .choice[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-soft); }
+  .choice[aria-pressed="true"] .emo { background: #FFFFFF; }
+  .summary { background: linear-gradient(150deg, var(--teal), var(--teal-dark)); color: #FFFFFF; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+  .summary strong { font-size: 14px; font-weight: 500; }
+  .summary .ranges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .summary .ranges span { background: rgba(255,255,255,.12); border-radius: 10px; padding: 6px 4px; text-align: center; font-size: 11px; font-weight: 300; line-height: 1.3; }
+  .summary .ranges b { display: block; font-size: 13px; font-weight: 500; }
+  .summary .ranges i { display: block; font-style: normal; font-size: 10px; opacity: .75; }
+  .summary small { font-size: 11px; font-weight: 300; opacity: .75; }
+
+  /* ---------- Toast ---------- */
+  .toast { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); max-width: calc(100% - 48px); background: var(--ink); color: #FFFFFF; padding: 10px 16px; border-radius: 99px; font-size: 13px; box-shadow: 0 8px 20px rgba(0,0,0,.2); animation: fadeIn .2s ease; }
+
+  /* ---------- Debug ---------- */
+  .debug table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .debug th, .debug td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  .debug th { color: var(--muted); font-weight: 500; }
+  .debug td.miss { color: var(--orange); }
+  .debug pre { margin: 0; max-height: 200px; overflow: auto; font-size: 10.5px; background: var(--bg); padding: 8px; border-radius: 10px; white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
+
+  /* ---------- Bottom nav ---------- */
+  .bottom-nav {
+    position: fixed; z-index: 20; left: 50%; transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    width: calc(100% - 32px); max-width: 448px;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+    padding: 6px; border-radius: 24px;
+    background: rgba(255,255,255,.92);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    box-shadow: 0 10px 30px rgba(16,35,31,.14), 0 0 0 1px rgba(16,35,31,.04);
+  }
+  .nav-item { min-height: 52px; border: none; border-radius: 18px; background: transparent; color: var(--grey); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 400; transition: background .2s, color .2s; }
+  .nav-item svg.i { width: 22px; height: 22px; transition: transform .2s; }
+  .nav-item[aria-selected="true"] { background: var(--teal-soft); color: var(--teal); font-weight: 500; }
+  .nav-item[aria-selected="true"] svg.i { transform: translateY(-1px); stroke-width: 2.2; }
+</style>
+</head>
+<body>
+
+<!-- ไอคอน (line icons) ใช้ซ้ำผ่าน <use> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ic-leaf" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z"/><path d="M2 21c0-3 1.9-5.4 5.1-6.1 2.4-.5 4.9-2 5.9-3.9"/></symbol>
+    <symbol id="ic-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v11a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9"/></symbol>
+    <symbol id="ic-plot-l" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 4v16"/><path d="M7.5 9v6" /><path d="M5.5 11.5c1 0 2 .7 2 1.8M9.5 10.5c-1 0-2 .8-2 2"/></symbol>
+    <symbol id="ic-plot-r" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 4v16"/><path d="M16.5 9v6"/><path d="M14.5 11.5c1 0 2 .7 2 1.8M18.5 10.5c-1 0-2 .8-2 2"/></symbol>
+    <symbol id="ic-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+    <symbol id="ic-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="ic-drop" viewBox="0 0 24 24"><path d="M12 2.7s-6 6.6-6 11a6 6 0 0 0 12 0c0-4.4-6-11-6-11z"/></symbol>
+    <symbol id="ic-temp" viewBox="0 0 24 24"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/></symbol>
+    <symbol id="ic-chevron-r" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="ic-off" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></symbol>
+    <symbol id="ic-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a8 8 0 0 0 16 0v-3a2 2 0 0 0-4 0"/></symbol>
+    <symbol id="ic-auto" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+    <symbol id="ic-valve" viewBox="0 0 24 24"><path d="M4 14h4l2-2h4l2 2h4"/><path d="M4 11v6M20 11v6"/><path d="M12 12V7"/><path d="M9 5h6"/><path d="M12 17.5s-1.5 1.7-1.5 2.7a1.5 1.5 0 0 0 3 0c0-1-1.5-2.7-1.5-2.7z"/></symbol>
+    <symbol id="ic-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></symbol>
+    <symbol id="ic-msg" viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z"/><path d="M8 10h8M8 13h5"/></symbol>
+    <symbol id="ic-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></symbol>
+    <symbol id="ic-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+    <symbol id="ic-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
+    <symbol id="ic-recipe" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="ic-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
+    <symbol id="ic-bug" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 7V4M9 4l1.5 3M15 4l-1.5 3M3 12h4M17 12h4M4 18l3-2M20 18l-3-2M4 6l3 2M20 6l-3 2"/></symbol>
+    <!-- ระยะการเจริญเติบโต -->
+    <symbol id="ic-seed" viewBox="0 0 24 24"><path d="M3 19h18"/><path d="M12 16c-2.2 0-3.5-1.4-3.5-3S10 9 12 8c2 1 3.5 3.4 3.5 5s-1.3 3-3.5 3z"/></symbol>
+    <symbol id="ic-sprout" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M12 20v-8"/><path d="M12 12c0-3-2.2-5-6-5 0 3 2.2 5 6 5z"/><path d="M12 12c0-3 2.2-5 6-5 0 3-2.2 5-6 5z"/></symbol>
+    <symbol id="ic-plant" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M12 21V5"/><path d="M12 15c-3.5 0-6-2-6-5 3.5 0 6 2 6 5z"/><path d="M12 11c3.5 0 6-2 6-5-3.5 0-6 2-6 5z"/><path d="M12 7c-1.8 0-3-1-3-3 1.8 0 3 1 3 3z"/></symbol>
+    <symbol id="ic-harvest" viewBox="0 0 24 24"><path d="M4 11h16l-1.6 8.2a2 2 0 0 1-2 1.8H7.6a2 2 0 0 1-2-1.8z"/><path d="M8 11 10 4M16 11l-2-7"/><path d="M9 15h6"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+  <header class="header">
+    <div class="brand">
+      <button class="logo" id="logo" aria-label="Smart Farm"><svg class="i"><use href="#ic-leaf"/></svg></button>
+      <div>
+        <h1>Smart Farm</h1>
+        <small><svg class="i"><use href="#ic-clock"/></svg><span id="updated">กำลังโหลดข้อมูล…</span></small>
+      </div>
+    </div>
+    <span class="pill off" id="headerPill"><i></i><span id="headerPillText">ระบบปิด</span></span>
+  </header>
+
+  <!-- ===================== หน้าหลัก ===================== -->
+  <section class="panel" id="panel-main" role="tabpanel">
+
+    <div class="master" id="masterCard">
+      <div class="master-row">
+        <div class="master-icon"><svg class="i"><use href="#ic-power"/></svg></div>
+        <div class="master-text">
+          <small>ระบบควบคุมหลัก</small>
+          <strong id="masterTitle">ระบบปิดอยู่</strong>
+        </div>
+        <button class="switch" id="masterSwitch" data-action="toggle-master" role="switch" aria-checked="false" aria-label="เปิดปิดการทำงานทั้งหมด"><span></span></button>
+      </div>
+      <div class="master-sub"><svg class="i"><use href="#ic-alert"/></svg><span id="masterSub">แตะสวิตช์เพื่อเปิดการทำงานทั้งหมด</span></div>
+    </div>
+
+    <!-- แจ้งเตือนรวมของทั้ง 2 แปลง (เติมโดย renderMainAlerts) -->
+    <div id="mainAlerts" style="display:contents"></div>
+
+    <div class="section-label">ภาพรวมแปลง</div>
+    <div class="overview">
+      <button class="ov left" data-action="go" data-tab="left">
+        <div class="ov-top">แปลงซ้าย <svg class="i"><use href="#ic-chevron-r"/></svg></div>
+        <div class="ov-val"><b data-ov="hum">–</b><em>%</em></div>
+        <div class="ov-meta">
+          <span><svg class="i"><use href="#ic-temp"/></svg><span data-ov="temp">–</span></span>
+          <span data-ov="valveWrap"><svg class="i"><use href="#ic-valve"/></svg><span data-ov="valve">–</span></span>
+          <span><svg class="i"><use href="#ic-sprout"/></svg><span data-ov="stage">–</span></span>
+        </div>
+      </button>
+      <button class="ov right" data-action="go" data-tab="right">
+        <div class="ov-top">แปลงขวา <svg class="i"><use href="#ic-chevron-r"/></svg></div>
+        <div class="ov-val"><b data-ov="hum">–</b><em>%</em></div>
+        <div class="ov-meta">
+          <span><svg class="i"><use href="#ic-temp"/></svg><span data-ov="temp">–</span></span>
+          <span data-ov="valveWrap"><svg class="i"><use href="#ic-valve"/></svg><span data-ov="valve">–</span></span>
+          <span><svg class="i"><use href="#ic-sprout"/></svg><span data-ov="stage">–</span></span>
+        </div>
+      </button>
+    </div>
+
+    <!-- โควตาข้อความ Blynk (MsgQuota / V50) — ซ่อนถ้าไม่ได้เพิ่ม datastream นี้ในวิดเจ็ต -->
+    <div class="card" id="quotaCard" hidden>
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ico teal" id="quotaIco"><svg class="i"><use href="#ic-msg"/></svg></span>
+          <div><h2>ข้อความ Blynk วันนี้</h2><small id="quotaSub">–</small></div>
+        </div>
+        <div class="now"><b id="quotaUsed">–</b><em id="quotaMax">/–</em></div>
+      </div>
+      <div class="meter" id="quotaMeter"><span id="quotaBar"></span></div>
+    </div>
+
+    <div class="section-label">ความชื้นดินย้อนหลัง</div>
+    <div class="seg" role="group" aria-label="ช่วงเวลาของกราฟ">
+      <button data-action="range" data-range="1" aria-pressed="true">24 ชม.</button>
+      <button data-action="range" data-range="3" aria-pressed="false">3 วัน</button>
+      <button data-action="range" data-range="7" aria-pressed="false">7 วัน</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ico blue"><svg class="i"><use href="#ic-drop"/></svg></span>
+          <div><h2>แปลงซ้าย</h2><small>ค่าเฉลี่ยความชื้นดิน</small></div>
+        </div>
+        <div class="now left"><b id="nowLeft">–</b><em>%</em></div>
+      </div>
+      <svg class="chart" id="chartLeft" viewBox="0 0 340 170" role="img" aria-label="กราฟความชื้นแปลงซ้าย"></svg>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ico cyan"><svg class="i"><use href="#ic-drop"/></svg></span>
+          <div><h2>แปลงขวา</h2><small>ค่าเฉลี่ยความชื้นดิน</small></div>
+        </div>
+        <div class="now right"><b id="nowRight">–</b><em>%</em></div>
+      </div>
+      <svg class="chart" id="chartRight" viewBox="0 0 340 170" role="img" aria-label="กราฟความชื้นแปลงขวา"></svg>
+    </div>
+
+    <!-- Debug: แสดงเมื่อเปิด ?debug=1 หรือแตะโลโก้ 5 ครั้ง -->
+    <div class="card debug" id="debugCard" hidden>
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ico teal"><svg class="i"><use href="#ic-bug"/></svg></span>
+          <div><h2>Debug</h2><small id="debugBridge">–</small></div>
+        </div>
+        <button class="btn ghost small" data-action="debug-copy">คัดลอก</button>
+      </div>
+      <table>
+        <thead><tr><th>Datastream</th><th>Pin</th><th>Index</th><th>ค่า</th></tr></thead>
+        <tbody id="debugTable"></tbody>
+      </table>
+      <pre id="debugLog"></pre>
+    </div>
+  </section>
+
+  <!-- ===================== หน้าแปลง (ใช้ร่วมกันทั้งซ้ายและขวา) ===================== -->
+  <section class="panel" id="panel-zone" role="tabpanel" hidden>
+
+    <div class="plot-head">
+      <div>
+        <small>รายละเอียดแปลง</small>
+        <h2 id="zoneName">แปลงซ้าย</h2>
+      </div>
+      <span class="pill off" id="zoneModePill"><i></i><span id="zoneModeText">ปิด</span></span>
+    </div>
+
+    <!-- สถานะการทำงานตอนนี้ (รดน้ำ / พักให้น้ำซึม / ขัดข้อง / คำแนะนำ) -->
+    <div class="banner" id="zoneBanner" hidden>
+      <svg class="i"><use href="#ic-alert"/></svg>
+      <div><b id="zoneBannerTitle"></b><span id="zoneBannerText"></span></div>
+    </div>
+
+    <!-- แจ้งเตือนระบบหลักปิด (แสดง/ซ่อนทุกจุดพร้อมกันด้วย class master-off-note) -->
+    <div class="note master-off-note" hidden><svg class="i"><use href="#ic-alert"/></svg><span>ระบบหลักปิดอยู่ · เซนเซอร์ยังวัดค่าตามปกติ แต่จะไม่รดน้ำ</span></div>
+
+    <!-- ความชื้น / อุณหภูมิ -->
+    <div class="metrics">
+      <div class="metric hum">
+        <div class="metric-top">
+          <span class="metric-ico"><svg class="i"><use href="#ic-drop"/></svg></span>
+          ความชื้นดิน
+        </div>
+        <div class="ring-row">
+          <b><span id="hum">–</span><em>%</em></b>
+          <svg class="ring" viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="bg" cx="32" cy="32" r="26"/>
+            <circle class="fg" id="humRing" cx="32" cy="32" r="26" stroke-dasharray="163.4" stroke-dashoffset="163.4"/>
+          </svg>
+        </div>
+        <span class="hint hum" id="humHint">–</span>
+      </div>
+      <div class="metric temp">
+        <div class="metric-top">
+          <span class="metric-ico"><svg class="i"><use href="#ic-temp"/></svg></span>
+          อุณหภูมิดิน
+        </div>
+        <b><span id="temp">–</span><em>°C</em></b>
+        <span class="hint temp" id="tempHint">–</span>
+      </div>
+    </div>
+
+    <!-- วาล์วน้ำ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ico blue"><svg class="i"><use href="#ic-valve"/></svg></span>
+          <div><h2>วาล์วน้ำ</h2><small>เลือกวิธีควบคุมการรดน้ำ</small></div>
+        </div>
+        <span class="pill off" id="valvePill"><i></i><span id="valvePillText">ปิด</span></span>
+      </div>
+      <div class="seg" role="group" aria-label="โหมดการทำงานของแปลง">
+        <button data-action="set-mode" data-mode="0" aria-pressed="false"><svg class="i"><use href="#ic-off"/></svg>ปิดแปลง</button>
+        <button data-action="set-mode" data-mode="2" aria-pressed="false"><svg class="i"><use href="#ic-hand"/></svg>สั่งเอง</button>
+        <button data-action="set-mode" data-mode="1" aria-pressed="false"><svg class="i"><use href="#ic-auto"/></svg>อัตโนมัติ</button>
+      </div>
+      <div class="valve-body" id="valveBody">
+        <div class="valve-ico"><svg class="i"><use href="#ic-drop"/></svg></div>
+        <div class="valve-text">
+          <strong id="valveTitle">วาล์วปิดอยู่</strong>
+          <small id="valveSub">–</small>
+        </div>
+        <button class="switch blue" id="valveSwitch" data-action="toggle-valve" role="switch" aria-checked="false" aria-label="เปิดปิดวาล์วน้ำ"><span></span></button>
+      </div>
+      <div class="runtime">
+        <div class="runtime-text">
+          <small>รดน้ำสะสมวันนี้</small>
+          <b><span id="dailyMinutes">–</span><em>นาที</em></b>
+        </div>
+        <button class="btn ghost small" data-action="reset-runtime"><svg class="i"><use href="#ic-reset"/></svg>รีเซ็ต</button>
+      </div>
+      <div class="note master-off-note" hidden><svg class="i"><use href="#ic-alert"/></svg><span id="masterNoteText">ระบบหลักปิดอยู่</span></div>
+    </div>
+
+    <!-- ระยะการเจริญเติบโต -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ico teal"><svg class="i"><use href="#ic-sprout"/></svg></span>
+          <div><h2>ระยะการเจริญเติบโต</h2><small id="stageSubtitle">–</small></div>
+        </div>
+      </div>
+      <div class="note master-off-note" hidden><svg class="i"><use href="#ic-alert"/></svg><span>ระบบหลักปิดอยู่ · ยังนับวันปลูกและเลือกระยะได้ แต่ยังไม่รดน้ำ</span></div>
+
+      <div class="empty" id="stageEmpty">
+        <div class="empty-ico"><svg class="i"><use href="#ic-seed"/></svg></div>
+        <strong>ยังไม่ได้ปลูก</strong>
+        <small>เมื่อลงต้นกล้าหรือหยอดเมล็ดแล้ว กดปุ่มด้านล่าง ระบบจะเริ่มนับวันปลูกและรดน้ำให้</small>
+        <button class="btn primary" data-action="start-planting"><svg class="i"><use href="#ic-sprout"/></svg>เริ่มปลูกวันนี้</button>
+      </div>
+
+      <div id="stageInfo" hidden>
+        <div class="steps" id="steps">
+          <div class="bar" id="stepBar"></div>
+          <!-- แถบระยะสร้างโดย buildStageSteps() จากตาราง STAGES -->
+        </div>
+        <p class="tap-hint" id="stepsHint">แตะเลือกระยะตามที่เห็นจริงในแปลง</p>
+        <div class="stats" style="margin-top:12px">
+          <div class="stat">
+            <svg class="i"><use href="#ic-calendar"/></svg>
+            <small>ปลูกมาแล้ว</small>
+            <b><span id="days">–</span><em>วัน</em></b>
+            <span class="sub" id="plantDate">–</span>
+          </div>
+          <div class="stat alt">
+            <svg class="i"><use href="#ic-flag"/></svg>
+            <small id="nextTitle">ระยะถัดไปในอีก</small>
+            <b><span id="nextValue">–</span><em id="nextUnit">วัน</em></b>
+            <span class="sub" id="nextSub">–</span>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn ghost" data-action="start-planting"><svg class="i"><use href="#ic-reset"/></svg>เริ่มรอบใหม่</button>
+          <button class="btn ghost" data-action="unplant"><svg class="i"><use href="#ic-harvest"/></svg>เก็บเกี่ยวแล้ว</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- สูตรการรดน้ำ 3 ขั้นตอน -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ico teal"><svg class="i"><use href="#ic-recipe"/></svg></span>
+          <div><h2>สูตรการรดน้ำ</h2><small>ระบบคำนวณความชื้นและเวลารดให้เอง</small></div>
+        </div>
+      </div>
+      <div class="note master-off-note" hidden><svg class="i"><use href="#ic-alert"/></svg><span>ระบบหลักปิดอยู่ · แก้สูตรได้ จะเริ่มใช้เมื่อเปิดระบบหลัก</span></div>
+      <div class="recipe" id="recipe"></div>
+      <p class="recipe-src" id="recipeSource" hidden></p>
+      <button class="btn primary" data-action="open-preset"><svg class="i"><use href="#ic-edit"/></svg><span id="recipeBtnText">ตั้งสูตรการรดน้ำ</span></button>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== Bottom sheet: ยืนยันคำสั่ง ===================== -->
+<div class="sheet-backdrop" id="confirmSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="sheet-grip"></div>
+    <h3 id="confirmTitle">ยืนยัน</h3>
+    <p id="confirmText"></p>
+    <div class="btn-row">
+      <button class="btn ghost" data-action="confirm-no">ยกเลิก</button>
+      <button class="btn primary" id="confirmOk" data-action="confirm-yes">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Bottom sheet: ตั้งสูตร 3 ขั้นตอน ===================== -->
+<div class="sheet-backdrop" id="presetSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="presetTitle">
+    <div class="sheet-grip"></div>
+    <div>
+      <h3 id="presetTitle">ตั้งสูตรการรดน้ำ</h3>
+      <p>ตอบ 3 ข้อ ระบบจะคำนวณความชื้นและเวลารดน้ำให้อัตโนมัติ</p>
+    </div>
+    <div class="q">
+      <div class="q-title"><span class="q-num">1</span>ปลูกพืชชนิดไหน?</div>
+      <div class="choices" data-field="crop"></div>
+    </div>
+    <div class="q">
+      <div class="q-title"><span class="q-num">2</span>ใช้ดินชนิดไหนในแปลง?</div>
+      <div class="choices" data-field="soil"></div>
+    </div>
+    <div class="q">
+      <div class="q-title"><span class="q-num">3</span>ต้องการให้รดน้ำแบบไหน?</div>
+      <div class="choices" data-field="useStages"></div>
+    </div>
+    <div class="summary" id="presetSummary"></div>
+    <div class="btn-row">
+      <button class="btn ghost" data-action="close-preset">ยกเลิก</button>
+      <button class="btn primary" data-action="save-preset">บันทึกสูตร</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<!-- ===================== Bottom Navbar ===================== -->
+<nav class="bottom-nav" role="tablist" aria-label="เมนู">
+  <button class="nav-item" role="tab" data-action="go" data-tab="left" aria-selected="false"><svg class="i"><use href="#ic-plot-l"/></svg>แปลงซ้าย</button>
+  <button class="nav-item" role="tab" data-action="go" data-tab="main" aria-selected="true"><svg class="i"><use href="#ic-home"/></svg>หน้าหลัก</button>
+  <button class="nav-item" role="tab" data-action="go" data-tab="right" aria-selected="false"><svg class="i"><use href="#ic-plot-r"/></svg>แปลงขวา</button>
+</nav>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   1) CONFIG — ค่าที่ต้องตรงกับเฟิร์มแวร์ (Config.h / BlynkManager.cpp)
+   ===================================================================== */
+const CONFIG = {
+  DAILY_TIME_UNIT: 'min',              // หน่วยของ DailyTime_* ที่บอร์ดส่งมา: 'sec' | 'min' | 'hour'
+  HISTORY_REFRESH_MS: 5 * 60 * 1000,   // โหลดกราฟใหม่ทุก 5 นาที
+  TOAST_MS: 2200,
+  LOG_SIZE: 40,                        // จำนวนบรรทัด log ที่เก็บไว้ในการ์ด Debug
+  // ต้องตรงกับ BlynkManager.cpp: บอร์ดหยุดส่งที่ 2400/วัน และลดความถี่การส่งเมื่อถึง 2000
+  QUOTA_DAILY_MAX: 2400,
+  QUOTA_THROTTLE_AT: 2000,
+  DEBUG: /[?&]debug=1\b/.test(location.search)
+};
+
+// ต้องตรงกับ enum ใน Config.h ของเฟิร์มแวร์
+const MODE       = Object.freeze({ OFF: 0, AUTO: 1, MANUAL: 2 });
+const ZONE_STATE = Object.freeze({ IDLE: 0, WATERING: 1, SOAKING: 2, FAULT: 3 });
+const STAGE      = Object.freeze({ UNPLANTED: 0, FIRST: 1, LAST: 4 });
+const PRESET_BASE = 100;              // รหัสสูตร = 100 + crop*10 + soil*2 + useStages
+
+/*
+   Datastream ที่วิดเจ็ตใช้ (จับคู่ด้วย V pin ไม่ขึ้นกับลำดับในหน้าตั้งค่าวิดเจ็ต)
+   - 15 ตัวหลัก: ต้องเพิ่มในหน้าตั้งค่า HTML Widget
+   - optional:   ถ้าเพิ่มด้วยจะได้ข้อมูลเพิ่ม (สถานะรดน้ำ/พักน้ำ/ขัดข้อง และสูตรปัจจุบันจากบอร์ด)
+                 ถ้าไม่เพิ่ม วิดเจ็ตยังทำงานครบ
+   ตรงกับ template จริง (TMPL6ajFMsWqd) และ BlynkManager.cpp:
+     Mode_*  : Integer 0..2   (0 = ปิดแปลง, 1 = Auto, 2 = Manual)
+     Stage_* : Integer 0..4   (0 = ไม่ได้ปลูก, 1..4 = ระยะ)
+     DAP_*   : Integer 0..365 → ส่ง 0 = เริ่มปลูกวันนี้, ส่ง 100..139 = บันทึกสูตร
+               (ใช้ DAP_* เพราะ Stage_* มี Max = 4 ส่งรหัสสูตรไม่ได้)
+     DailyTime_* : ส่ง 0 = รีเซ็ตเวลารดสะสม + ปลดล็อก
+     State_* : STRING "IDLE" | "WATERING" | "SOAKING" | "FAULT"
+*/
+const DATASTREAMS = {
+  Master:      { pin: 'V0'  },
+  Humidity_L:  { pin: 'V1'  }, Humidity_R:  { pin: 'V21' },
+  Temp_L:      { pin: 'V2'  }, Temp_R:      { pin: 'V22' },
+  Mode_L:      { pin: 'V4'  }, Mode_R:      { pin: 'V24' },
+  Valve_L:     { pin: 'V5'  }, Valve_R:     { pin: 'V25' },
+  DAP_L:       { pin: 'V6'  }, DAP_R:       { pin: 'V26' },
+  DailyTime_L: { pin: 'V7'  }, DailyTime_R: { pin: 'V27' },
+  Stage_L:     { pin: 'V16' }, Stage_R:     { pin: 'V36' },
+  State_L:     { pin: 'V3',  optional: true }, State_R:  { pin: 'V23', optional: true },
+  Preset_L:    { pin: 'V15', optional: true }, Preset_R: { pin: 'V35', optional: true },
+  MsgQuota:    { pin: 'V50', optional: true }   // จำนวนข้อความที่บอร์ดส่งวันนี้ (อัปเดตทุก 5 นาที)
+};
+const ALL_NAMES = Object.keys(DATASTREAMS);
+
+function zoneStreams(suffix) {
+  return {
+    hum: 'Humidity_' + suffix, temp: 'Temp_' + suffix, mode: 'Mode_' + suffix,
+    valve: 'Valve_' + suffix, dap: 'DAP_' + suffix, daily: 'DailyTime_' + suffix,
+    stage: 'Stage_' + suffix, state: 'State_' + suffix, preset: 'Preset_' + suffix
+  };
+}
+const ZONES = {
+  left:  { label: 'แปลงซ้าย', color: '#2F7BE0', chartId: 'chartLeft',  nowId: 'nowLeft',  ds: zoneStreams('L') },
+  right: { label: 'แปลงขวา',  color: '#13A39A', chartId: 'chartRight', nowId: 'nowRight', ds: zoneStreams('R') }
+};
+const ZONE_KEYS = Object.keys(ZONES);
+
+/* ---------- ข้อมูลสูตร: คัดลอกจาก Storage.cpp ของเฟิร์มแวร์ (ถ้าแก้เฟิร์มแวร์ ต้องแก้ตรงนี้ด้วย) ---------- */
+const STAGES = [
+  { n: 1, name: 'เพาะกล้า',      icon: 'ic-seed' },
+  { n: 2, name: 'ต้นอ่อน',       icon: 'ic-sprout' },
+  { n: 3, name: 'กำลังเติบโต',   icon: 'ic-plant' },
+  { n: 4, name: 'ใกล้เก็บเกี่ยว', icon: 'ic-harvest' }
+];
+
+// Storage_ApplySoilPreset(): ความชื้นฐาน (เริ่มรด low / หยุดรด high) ตามชนิดดิน
+// id = ค่า SoilType · เรียงตามที่แสดงบนจอ (ดินร่วนขึ้นก่อนเพราะพบบ่อยสุด)
+const SOILS = [
+  { id: 1, emo: '🪴', name: 'ดินร่วนทั่วไป',      hint: 'ค่ามาตรฐาน',       low: 42, high: 60 },
+  { id: 0, emo: '🏖️', name: 'ดินทราย',            hint: 'น้ำซึมเร็ว',         low: 30, high: 45 },
+  { id: 2, emo: '🧱', name: 'ดินเหนียว / ดินแน่น', hint: 'อุ้มน้ำนาน',         low: 52, high: 70 },
+  { id: 3, emo: '🥥', name: 'ขุยมะพร้าว / ดินถุง', hint: 'โปร่ง ระบายน้ำดี',   low: 55, high: 75 }
+];
+
+// Storage_ApplyCropPreset(): ค่าแต่ละระยะ = ความชื้นฐานของดิน + ค่าปรับของพืช
+// stage(สิ้นสุดวันที่, ปรับ low, ปรับ high, รดครั้งละ(นาที), พักซึม(นาที), สูงสุด/วัน(นาที))
+// constant = ค่าที่ใช้เมื่อเลือก "ตามเซนเซอร์คงที่" (ความชื้น = ค่าฐานของดิน)
+function stage(endDap, dLow, dHigh, pulse, soak, maxDaily) {
+  return { endDap: endDap, dLow: dLow, dHigh: dHigh, pulse: pulse, soak: soak, maxDaily: maxDaily };
+}
+// id = ค่า CropGroup (index ของ array ต้องตรงกับ id)
+const CROPS = [
+  { id: 0, emo: '🥬', name: 'ผักกินใบ', hint: 'คะน้า ผักบุ้ง ผักกาด สลัด',
+    constant: { pulse: 2, soak: 8, maxDaily: 20 },
+    stages: [stage(10, 5, 0, 2, 8, 15), stage(25, 3, 0, 2, 8, 20), stage(40, 0, 0, 3, 8, 25), stage(50, 0, 0, 2, 8, 20)] },
+  { id: 1, emo: '🌶️', name: 'พริก / มะเขือ', hint: 'พริก มะเขือเทศ มะเขือ',
+    constant: { pulse: 3, soak: 10, maxDaily: 30 },
+    stages: [stage(15, 5, 0, 2, 10, 20), stage(45, 0, 0, 3, 10, 30), stage(85, 0, 3, 4, 12, 45), stage(120, -3, -2, 3, 10, 30)] },
+  { id: 2, emo: '🍈', name: 'เมล่อน / พืชเถา', hint: 'เมล่อน แตงกวา ฟักทอง',
+    constant: { pulse: 3, soak: 12, maxDaily: 35 },
+    stages: [stage(15, 5, 0, 2, 10, 20), stage(40, 0, 0, 3, 12, 35), stage(70, 0, 5, 4, 15, 50), stage(85, -8, -10, 2, 15, 25)] },
+  { id: 3, emo: '🌿', name: 'สมุนไพร', hint: 'กะเพรา โหระพา สะระแหน่',
+    constant: { pulse: 2, soak: 15, maxDaily: 20 },
+    stages: [stage(15, 3, 0, 2, 12, 15), stage(45, -3, -3, 2, 15, 20), stage(80, -5, -5, 2, 15, 25), stage(120, -5, -5, 2, 15, 20)] }
+];
+
+// id = useGrowthStages (0/1)
+const PLANS = [
+  { id: 1, emo: '📈', name: 'ปรับตามระยะพืช',   hint: 'แนะนำ · เกณฑ์รดน้ำเปลี่ยนตามระยะที่ผู้ดูแลเลือก' },
+  { id: 0, emo: '💧', name: 'ตามเซนเซอร์คงที่', hint: 'เกณฑ์เดียวตลอดฤดู · เหมาะกับแปลงผสมหลายอายุ' }
+];
+
+const DEFAULT_PRESET = { crop: 0, soil: 1, useStages: 1 };
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/* =====================================================================
+   2) LOG — ทุก action / ค่าที่รับ-ส่ง ผ่านตรงนี้ ดูได้ในการ์ด Debug และ Console
+   ===================================================================== */
+const logLines = [];
+function log(kind, message, data) {
+  const time = new Date().toTimeString().slice(0, 8);
+  const extra = data === undefined ? '' : ' ' + safeJson(data);
+  logLines.push(time + ' [' + kind + '] ' + message + extra);
+  if (logLines.length > CONFIG.LOG_SIZE) logLines.shift();
+  if (CONFIG.DEBUG || kind === 'warn') {
+    (kind === 'warn' ? console.warn : console.log)('[SmartFarm]', kind, message, data === undefined ? '' : data);
+  }
+  if (ui.debugVisible) renderDebug();
+}
+function safeJson(v) { try { return JSON.stringify(v); } catch (e) { return String(v); } }
+
+/* =====================================================================
+   3) BRIDGE — BlynkBridge จริง หรือ ตัวจำลองเมื่อเปิดไฟล์นอกแอป Blynk
+   ===================================================================== */
+const hasBridge = typeof BlynkBridge !== 'undefined';
+const bridge = hasBridge ? new BlynkBridge() : makeStub();
+
+/*
+   ตัวจำลอง: จำลองลำดับ datastream สลับกัน (ทดสอบการจับคู่ด้วย V pin)
+   และจำลองการตอบกลับของบอร์ดแบบง่าย ๆ เพื่อทดสอบปุ่มต่าง ๆ ได้ในเบราว์เซอร์
+*/
+function makeStub() {
+  const demo = {
+    Master: '1', MsgQuota: '420',
+    Humidity_L: '62', Temp_L: '29.5', Mode_L: '2', Valve_L: '1', DAP_L: '23', DailyTime_L: '18', Stage_L: '3', State_L: 'WATERING', Preset_L: '111',
+    Humidity_R: '41', Temp_R: '31.2', Mode_R: '1', Valve_R: '0', DAP_R: '0',  DailyTime_R: '0',  Stage_R: '0', State_R: 'IDLE'
+    // Preset_R ไม่ได้ใส่ → ทดสอบกรณีไม่มี datastream Preset
+  };
+  const order = ALL_NAMES.filter(n => n in demo).reverse();
+  let callbacks = {};
+  const obj = (name) => ({ index: order.indexOf(name), label: '', value: demo[name], lastUpdated: Date.now() });
+  const emit = (name) => setTimeout(() => callbacks.onValueUpdated && callbacks.onValueUpdated(obj(name)), 300);
+
+  function simulateBoard(name, value) {
+    const suffix = name.slice(-1);
+    const n = Number(value);
+    if (n >= PRESET_BASE) {          // รหัสสูตร (ส่งมาทาง DAP_*) → Blynk สะท้อนค่ากลับ แล้วบอร์ดส่ง DAP จริงตามมา
+      setTimeout(() => callbacks.onValueUpdated && callbacks.onValueUpdated({ index: order.indexOf(name), value: String(n) }), 100);
+      if (('Preset_' + suffix) in demo) { demo['Preset_' + suffix] = String(n); emit('Preset_' + suffix); }
+      emit(name);
+      return;
+    }
+    demo[name] = String(value);
+    if (name.indexOf('DAP_') === 0 && n === 0) { demo['Stage_' + suffix] = '1'; emit('Stage_' + suffix); }
+    emit(name);
+  }
+
+  return {
+    setCallbacks(cb) { callbacks = cb || {}; },
+    sendValue(selector, value) {
+      const name = typeof selector === 'number' ? order[selector] : selector && selector.name;
+      if (name) simulateBoard(name, value);
+    },
+    getValues: () => Promise.resolve(order.map(obj)),
+    getValue: (sel) => {
+      const name = order.find(n => sel.pin ? DATASTREAMS[n].pin.toUpperCase() === String(sel.pin).toUpperCase() : n === sel.name);
+      return name ? Promise.resolve(obj(name)) : Promise.reject({ code: 'datastream_not_found' });
+    },
+    getHistoricalData: (opt) => {
+      const n = 60;
+      return Promise.resolve({
+        streams: opt.dataStreams.map(d => ({
+          index: d.index,
+          values: Array.from({ length: n }, (_, i) => ({
+            x: opt.from + (opt.to - opt.from) * i / (n - 1),
+            y: (d.index === order.indexOf('Humidity_L') ? 58 : 45) + 12 * Math.sin(i / 5) + 4 * Math.sin(i * 1.7)
+          }))
+        }))
+      });
+    }
+  };
+}
+
+/* =====================================================================
+   4) STATE
+   ===================================================================== */
+const store = {
+  values: {},        // ชื่อ datastream → ค่าล่าสุด (string)
+  indexOf: {},       // ชื่อ datastream → index ในวิดเจ็ต
+  nameOf: {},        // index → ชื่อ datastream
+  pending: {},       // ค่าที่มาถึงก่อนจะรู้ว่าเป็น datastream ไหน
+  ignoreOnce: {},    // ชื่อ datastream → รหัสคำสั่งที่เพิ่งส่ง (ข้ามค่าสะท้อนกลับ 1 ครั้ง)
+  lastUpdate: null,
+  history: { left: [], right: [] }
+};
+const ui = {
+  tab: 'main',       // 'main' | 'left' | 'right'
+  rangeDays: 1,
+  debugVisible: CONFIG.DEBUG,
+  presetZone: null,  // แปลงที่กำลังแก้สูตรใน sheet
+  presetDraft: null,
+  confirmResolve: null,
+  toastTimer: null
+};
+
+/* =====================================================================
+   5) HELPERS
+   ===================================================================== */
+const $ = (id) => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const fmt = (n, digits) => (n === null ? '–' : n.toFixed(digits));
+const currentZone = () => (ZONES[ui.tab] ? ui.tab : null);
+
+function num(name) {
+  const v = store.values[name];
+  if (v === undefined || v === null || v === '') return null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+function hasStream(name) { return store.indexOf[name] !== undefined; }
+function zoneNum(key, field) { return num(ZONES[key].ds[field]); }
+
+function toMinutes(v) {
+  if (v === null) return null;
+  if (CONFIG.DAILY_TIME_UNIT === 'sec') return v / 60;
+  if (CONFIG.DAILY_TIME_UNIT === 'hour') return v * 60;
+  return v;
+}
+
+/* ---------- อ่านสถานะแปลง (แปลงค่าดิบให้อ่านง่าย ใช้ทั้ง render และ action) ---------- */
+function isMasterOn() { return num('Master') === 1; }
+
+function getMode(key) {
+  const m = zoneNum(key, 'mode');
+  return (m === MODE.AUTO || m === MODE.MANUAL) ? m : MODE.OFF;
+}
+function isValveOpen(key) { return zoneNum(key, 'valve') === 1; }    // สถานะรีเลย์จริงจากบอร์ด
+function getStage(key) {
+  const s = zoneNum(key, 'stage');
+  return s === null ? STAGE.UNPLANTED : clamp(Math.round(s), STAGE.UNPLANTED, STAGE.LAST);
+}
+/**
+ * State_* ใน Blynk Console เป็นชนิด STRING → รับได้ทั้งตัวเลข ("1") และชื่อ ("WATERING")
+ * คืนค่า null ถ้าไม่ได้เพิ่ม State_* ในวิดเจ็ต หรือเป็นค่าที่ไม่รู้จัก
+ */
+const STATE_BY_NAME = { IDLE: ZONE_STATE.IDLE, WATERING: ZONE_STATE.WATERING, SOAKING: ZONE_STATE.SOAKING, FAULT: ZONE_STATE.FAULT, OFFLINE: ZONE_STATE.FAULT };
+function getZoneState(key) {
+  const raw = store.values[ZONES[key].ds.state];
+  if (raw === undefined || raw === null || raw === '') return null;
+  const n = parseFloat(raw);
+  if (Number.isFinite(n)) return n;
+  const name = String(raw).trim().toUpperCase();
+  return name in STATE_BY_NAME ? STATE_BY_NAME[name] : null;
+}
+
+function modeLabel(mode) {
+  return mode === MODE.AUTO ? 'อัตโนมัติ' : mode === MODE.MANUAL ? 'สั่งเอง' : 'ปิดแปลง';
+}
+function stageLabel(stage) {
+  return stage === STAGE.UNPLANTED ? 'ยังไม่ได้ปลูก' : 'ระยะที่ ' + stage + ' · ' + STAGES[stage - 1].name;
+}
+
+/* ---------- สูตร (Preset) ---------- */
+function encodePreset(p) { return PRESET_BASE + p.crop * 10 + p.soil * 2 + p.useStages; }
+function decodePreset(code) {
+  if (!Number.isFinite(code)) return null;
+  const c = Math.round(code) - PRESET_BASE;
+  if (c < 0 || c > 39) return null;
+  const preset = { crop: Math.floor(c / 10), soil: Math.floor((c % 10) / 2), useStages: c % 2 };
+  return (CROPS[preset.crop] && soilById(preset.soil)) ? preset : null;
+}
+function soilById(id) { return SOILS.find(s => s.id === id) || null; }
+function planById(id) { return PLANS.find(p => p.id === id) || null; }
+
+// สำรองสูตรที่ส่งล่าสุดไว้ในเครื่อง (ใช้เมื่อไม่ได้เพิ่ม datastream Preset_*)
+const PRESET_LS_KEY = 'smartfarm.preset.';
+function savePresetLocal(key, preset) {
+  try { localStorage.setItem(PRESET_LS_KEY + key, String(encodePreset(preset))); } catch (e) { /* storage ถูกปิด */ }
+}
+function loadPresetLocal(key) {
+  try { return decodePreset(parseFloat(localStorage.getItem(PRESET_LS_KEY + key))); } catch (e) { return null; }
+}
+
+/** สูตรปัจจุบันของแปลง: { preset, source: 'device' | 'local' } หรือ null */
+function getPreset(key) {
+  const fromDevice = decodePreset(zoneNum(key, 'preset'));
+  if (fromDevice) return { preset: fromDevice, source: 'device' };
+  const fromLocal = loadPresetLocal(key);
+  return fromLocal ? { preset: fromLocal, source: 'local' } : null;
+}
+
+/**
+ * คำนวณค่าการรดน้ำแบบเดียวกับเฟิร์มแวร์ (Storage_ApplyCombinedPreset)
+ * @returns {{ constant: {low,high,pulse,soak,maxDaily}, stages: Array<{endDap,low,high,pulse,soak,maxDaily}> }}
+ */
+function recipeValues(preset) {
+  const soil = soilById(preset.soil), crop = CROPS[preset.crop];
+  return {
+    constant: Object.assign({ low: soil.low, high: soil.high }, crop.constant),
+    stages: crop.stages.map(s => ({
+      endDap: s.endDap, low: soil.low + s.dLow, high: soil.high + s.dHigh,
+      pulse: s.pulse, soak: s.soak, maxDaily: s.maxDaily
+    }))
+  };
+}
+function endDaps(preset) { return CROPS[preset.crop].stages.map(s => s.endDap); }
+
+/**
+ * ระยะที่ "ควรเป็น" ตามจำนวนวันปลูก (กติกาเดียวกับเฟิร์มแวร์ 2.0.0: DAP <= endDAP ของระยะไหน = ระยะนั้น)
+ * ใช้เป็นคำแนะนำให้ผู้ดูแลเท่านั้น — ระบบไม่เลื่อนระยะเอง
+ * @returns {number|null} 1..4 หรือ null ถ้าไม่รู้สูตร/วันปลูก หรือเป็นโหมดคงที่
+ */
+function suggestedStage(preset, dap) {
+  if (!preset || !preset.useStages || dap === null) return null;
+  const ends = endDaps(preset);
+  for (let i = 0; i < ends.length; i++) if (dap <= ends[i]) return i + 1;
+  return STAGE.LAST;
+}
+
+/** ข้อความสำหรับการ์ด "ระยะถัดไป" */
+function nextStageInfo(key, stage, dap) {
+  const current = getPreset(key);
+  if (!current) return { title: 'ระยะถัดไป', value: '–', unit: '', sub: 'ตั้งสูตรการรดน้ำเพื่อดูกำหนดการ' };
+  const { preset } = current;
+  if (!preset.useStages) {
+    const c = recipeValues(preset).constant;
+    return { title: 'ความชื้นเป้าหมาย', value: c.low + '–' + c.high, unit: '%', sub: 'คงที่ตลอดฤดู' };
+  }
+  const endDay = endDaps(preset)[stage - 1];
+  if (stage >= STAGE.LAST) {
+    return { title: 'เก็บเกี่ยวได้ราว', value: dap === null ? '–' : String(Math.max(0, endDay - dap)), unit: 'วัน', sub: 'ครบรอบประมาณวันที่ ' + endDay };
+  }
+  return {
+    title: 'ระยะถัดไปในอีก',
+    value: dap === null ? '–' : String(Math.max(0, endDay - dap)),
+    unit: 'วัน',
+    sub: 'ตามกำหนด ' + STAGES[stage].name + ' ราววันที่ ' + (endDay + 1)
+  };
+}
+
+/* =====================================================================
+   6) SEND — ทุกคำสั่งออกไปที่บอร์ดผ่าน sendValue() ฟังก์ชันเดียว
+   ===================================================================== */
+/**
+ * @param {string} name        ชื่อ datastream
+ * @param {number} value       ค่าที่จะส่ง
+ * @param {object} [opt]
+ * @param {boolean} [opt.optimistic=true] อัปเดตหน้าจอทันทีก่อนบอร์ดตอบ
+ *        (ปิดเมื่อส่ง "รหัสคำสั่ง" เช่น 100..139 ที่ไม่ใช่ค่าจริงของ datastream นั้น)
+ */
+function sendValue(name, value, opt) {
+  const optimistic = !opt || opt.optimistic !== false;
+  const index = store.indexOf[name];
+  log('send', name + ' (' + DATASTREAMS[name].pin + ') = ' + value, { index: index === undefined ? 'by-name' : index });
+
+  if (optimistic) setLocal(name, value);
+  else store.ignoreOnce[name] = String(value);   // รหัสคำสั่ง: ถ้า Blynk สะท้อนค่านี้กลับมา ไม่ต้องแสดง
+  try {
+    if (index !== undefined) bridge.sendValue(index, value);
+    else bridge.sendValue({ name: name }, value);
+    return true;
+  } catch (e) {
+    log('warn', 'ส่งค่าไม่สำเร็จ ' + name, String(e && e.message || e));
+    showToast('ส่งคำสั่งไม่สำเร็จ ลองใหม่อีกครั้ง');
+    return false;
+  }
+}
+/** เปลี่ยนค่าในหน้าจอเท่านั้น (ไม่ส่งไปบอร์ด) */
+function setLocal(name, value) {
+  store.values[name] = String(value);
+  render();
+}
+
+/* =====================================================================
+   7) ACTIONS — สิ่งที่ผู้ใช้สั่งได้ (แต่ละอันสั้น อ่านจบในตัว)
+   ===================================================================== */
+const Actions = {
+  toggleMaster() {
+    sendValue('Master', isMasterOn() ? 0 : 1);
+  },
+
+  setMode(key, mode) {
+    if (!isMasterOn()) return;                          // ระบบหลักปิด: ล็อกโหมดไว้ (บอร์ดจำโหมดเดิม)
+    if (getMode(key) === mode) return;
+    // โหมด "ปิดแปลง": เฟิร์มแวร์ปิดวาล์วให้เอง ไม่ต้องส่ง Valve = 0 ซ้ำ (ประหยัดโควตาข้อความ)
+    sendValue(ZONES[key].ds.mode, mode);
+    showToast(ZONES[key].label + ': ' + modeLabel(mode));
+  },
+
+  toggleValve(key) {
+    if (getMode(key) !== MODE.MANUAL) return;           // สั่งวาล์วเองได้เฉพาะโหมดสั่งเอง
+    sendValue(ZONES[key].ds.valve, isValveOpen(key) ? 0 : 1);
+  },
+
+  /**
+   * ผู้ดูแลเลือกระยะเอง (ต้องใช้เฟิร์มแวร์ 2.0.1+ ที่ไม่เลื่อนระยะเอง — 2.0.0 จะเขียนทับภายใน 1 วินาที)
+   * บอร์ดใช้เกณฑ์ความชื้น/เวลารดของระยะนี้ทันที
+   */
+  setStage(key, stage) {
+    if (getStage(key) === stage) return;
+    const current = getPreset(key);
+    const constantMode = current && !current.preset.useStages;
+    askConfirm({
+      title: 'เปลี่ยนเป็น' + stageLabel(stage) + '?',
+      text: constantMode
+        ? 'บันทึกระยะไว้ดูติดตาม · สูตรนี้ใช้เกณฑ์ความชื้นคงที่ การรดน้ำจึงไม่เปลี่ยน'
+        : 'ระบบจะรดน้ำตามเกณฑ์ของระยะนี้ทันที เลือกตามที่เห็นต้นไม้จริงในแปลง'
+    }).then(ok => {
+      if (!ok) return;
+      sendValue(ZONES[key].ds.stage, stage);
+      showToast(ZONES[key].label + ': ' + stageLabel(stage));
+    });
+  },
+
+  startPlanting(key) {
+    const replanting = getStage(key) !== STAGE.UNPLANTED;
+    const go = () => {
+      // ส่ง DAP = 0 → บอร์ดตั้งวันเริ่มปลูกเป็นวันนี้ และเริ่มระยะที่ 1
+      sendValue(ZONES[key].ds.dap, 0);
+      setLocal(ZONES[key].ds.stage, STAGE.FIRST);
+      showToast('เริ่มนับวันปลูกใหม่แล้ว 🌱');
+    };
+    if (!replanting) return go();
+    askConfirm({
+      title: 'เริ่มรอบปลูกใหม่วันนี้?',
+      text: 'วันปลูกจะกลับเป็น 0 และเริ่มที่ระยะที่ 1 ใช้เมื่อลงต้นกล้ารอบใหม่',
+      ok: 'เริ่มรอบใหม่'
+    }).then(ok => { if (ok) go(); });
+  },
+
+  unplant(key) {
+    askConfirm({
+      title: 'เก็บเกี่ยวแล้ว / แปลงว่าง?',
+      text: 'ตั้งเป็น "ยังไม่ได้ปลูก" โหมดอัตโนมัติจะหยุดรดน้ำแปลงนี้จนกว่าจะเริ่มปลูกใหม่',
+      ok: 'ยืนยัน', tone: 'warn'
+    }).then(ok => { if (ok) sendValue(ZONES[key].ds.stage, STAGE.UNPLANTED); });
+  },
+
+  resetRuntime(key) {
+    askConfirm({
+      title: 'รีเซ็ตเวลารดน้ำสะสม?',
+      text: 'เวลารดวันนี้จะกลับเป็น 0 นาที และปลดล็อกการพักรดน้ำ (กรณีรดครบโควตา หรือระบบหยุดเพราะความชื้นไม่ขึ้น) ควรตรวจถังน้ำและท่อก่อน',
+      ok: 'รีเซ็ต'
+    }).then(ok => {
+      if (!ok) return;
+      sendValue(ZONES[key].ds.daily, 0);       // DailyTime = 0 → บอร์ดรีเซ็ต + ปลดล็อก Lockout
+      showToast('รีเซ็ตเวลารดน้ำแล้ว');
+    });
+  },
+
+  savePreset(key, preset) {
+    const ds = ZONES[key].ds;
+    const code = encodePreset(preset);
+    // มี Preset_* ในวิดเจ็ต → ส่งเข้าช่องนั้นตรง ๆ
+    // ไม่มี → ส่งรหัสเข้า DAP_* (Max 365 รับ 100..139 ได้, บอร์ดส่ง DAP จริงกลับมาทันทีผ่าน SendStatus)
+    const wasUnplanted = getStage(key) === STAGE.UNPLANTED;
+    if (hasStream(ds.preset)) sendValue(ds.preset, code);
+    else sendValue(ds.dap, code, { optimistic: false });
+
+    // แปลงว่าง: ตั้งสูตร = เริ่มปลูกวันนี้ — เฟิร์มแวร์ 2.0.1+ ทำให้เองแล้ว
+    // ส่ง DAP = 0 ซ้ำไว้กันกรณีบอร์ดยังเป็น 2.0.0 (ที่นับวันปลูกจากวันเก่า) — ลบได้เมื่ออัปเฟิร์มแวร์ครบทุกบอร์ด
+    if (wasUnplanted) {
+      sendValue(ds.dap, 0);
+      setLocal(ds.stage, STAGE.FIRST);
+    }
+    savePresetLocal(key, preset);
+    render();
+    showToast(wasUnplanted ? 'บันทึกสูตรและเริ่มนับวันปลูกแล้ว 🌱' : 'บันทึกสูตรแล้ว ✓');
+  }
+};
+
+/* =====================================================================
+   8) RENDER — อ่าน state แล้ววาดหน้าจอ (ไม่มีการส่งค่าในส่วนนี้)
+   ===================================================================== */
+function render() {
+  const masterOn = isMasterOn();
+  renderHeader(masterOn);
+  renderNav();
+
+  $('panel-main').hidden = ui.tab !== 'main';
+  $('panel-zone').hidden = ui.tab === 'main';
+
+  if (ui.tab === 'main') renderMain(masterOn);
+  else renderZone(ui.tab, masterOn);
+}
+
+function renderHeader(masterOn) {
+  $('headerPill').className = 'pill ' + (masterOn ? 'on' : 'off');
+  $('headerPillText').textContent = masterOn ? 'ระบบทำงาน' : 'ระบบปิด';
+
+  let updated = 'กำลังโหลดข้อมูล…';
+  if (!hasBridge) updated = 'โหมดตัวอย่าง (ไม่ได้เชื่อม Blynk)';
+  else if (store.lastUpdate) {
+    const d = new Date(store.lastUpdate);
+    updated = 'อัปเดตล่าสุด ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' น.';
+  }
+  $('updated').textContent = updated;
+}
+
+function renderNav() {
+  document.querySelectorAll('.nav-item').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === ui.tab)));
+}
+
+/* ---------- หน้าหลัก ---------- */
+function renderMain(masterOn) {
+  $('masterCard').classList.toggle('is-on', masterOn);
+  $('masterSwitch').setAttribute('aria-checked', String(masterOn));
+  $('masterTitle').textContent = masterOn ? 'ระบบทำงานอยู่' : 'ระบบปิดอยู่';
+  $('masterSub').textContent = masterOn ? 'แตะสวิตช์เพื่อหยุดการทำงานทั้งหมด' : 'แตะสวิตช์เพื่อเปิดการทำงานทั้งหมด';
+
+  renderMainAlerts();
+  renderQuota();
+  ZONE_KEYS.forEach(key => {
+    renderOverview(key);
+    $(ZONES[key].nowId).textContent = fmt(zoneNum(key, 'hum'), 0);
+    drawChart($(ZONES[key].chartId), store.history[key], ZONES[key].color, 'grad-' + key);
+  });
+  document.querySelectorAll('[data-action="range"]').forEach(b =>
+    b.setAttribute('aria-pressed', String(Number(b.dataset.range) === ui.rangeDays)));
+  if (ui.debugVisible) renderDebug();
+  $('debugCard').hidden = !ui.debugVisible;
+}
+
+/** การ์ดโควตาข้อความ Blynk — นับเฉพาะข้อความที่บอร์ดส่งขึ้น รีเซ็ตเมื่อขึ้นวันใหม่ (ตาม RTC ของบอร์ด) */
+function renderQuota() {
+  const used = num('MsgQuota');
+  $('quotaCard').hidden = used === null;
+  if (used === null) return;
+
+  const max = CONFIG.QUOTA_DAILY_MAX, throttleAt = CONFIG.QUOTA_THROTTLE_AT;
+  const warn = used >= throttleAt;
+  $('quotaUsed').textContent = Math.round(used).toLocaleString('th-TH');
+  $('quotaMax').textContent = '/' + max.toLocaleString('th-TH');
+  $('quotaBar').style.width = clamp(used / max * 100, 0, 100) + '%';
+  $('quotaMeter').classList.toggle('warn', warn);
+  $('quotaIco').className = 'ico ' + (warn ? 'warn' : 'teal');
+  $('quotaSub').textContent =
+    used >= max ? 'เต็มโควตา บอร์ดหยุดส่งข้อมูลจนถึงเที่ยงคืน' :
+    warn        ? 'ใกล้เต็ม บอร์ดลดการส่งเหลือทุก 5 นาทีอัตโนมัติ' :
+                  'เหลือ ' + Math.round(max - used).toLocaleString('th-TH') + ' ข้อความ · เริ่มนับใหม่เที่ยงคืน';
+}
+
+function renderMainAlerts() {
+  const box = $('mainAlerts');
+  box.textContent = '';
+  ZONE_KEYS.forEach(key => {
+    const status = zoneStatus(key);
+    if (!status || status.tone !== 'warn') return;
+    box.appendChild(makeBanner(status.tone, ZONES[key].label + ': ' + status.title, status.text));
+  });
+}
+
+function renderOverview(key) {
+  const card = document.querySelector('.ov.' + key);
+  const set = (field, text) => { card.querySelector('[data-ov="' + field + '"]').textContent = text; };
+  const temp = zoneNum(key, 'temp');
+  const open = isValveOpen(key);
+  const stage = getStage(key);
+  const dap = zoneNum(key, 'dap');
+
+  set('hum', fmt(zoneNum(key, 'hum'), 0));
+  set('temp', temp === null ? '–' : temp.toFixed(1) + ' °C');
+  set('valve', (open ? 'กำลังรดน้ำ' : 'วาล์วปิด') + ' · ' + (isMasterOn() ? modeLabel(getMode(key)) : 'ระบบหลักปิด'));
+  set('stage', stage === STAGE.UNPLANTED ? 'ยังไม่ได้ปลูก' : 'ระยะ ' + stage + (dap === null ? '' : ' · ' + Math.round(dap) + ' วัน'));
+  card.querySelector('[data-ov="valveWrap"]').classList.toggle('is-on', open);
+}
+
+/* ---------- หน้าแปลง ---------- */
+function renderZone(key, masterOn) {
+  $('zoneName').textContent = ZONES[key].label;
+  const mode = getMode(key);   // โหมดจริงที่บอร์ดจำไว้ (ไม่เปลี่ยนตอนปิดระบบหลัก)
+  $('zoneModePill').className = 'pill ' + (!masterOn ? 'warn' : mode === MODE.AUTO ? 'on' : mode === MODE.MANUAL ? 'blue' : 'off');
+  $('zoneModeText').textContent = masterOn ? modeLabel(mode) : 'ระบบหลักปิด';
+  document.querySelectorAll('.master-off-note').forEach(n => { n.hidden = masterOn; });
+
+  renderZoneBanner(key);
+  renderSensors(key);
+  renderValve(key, mode, masterOn);
+  renderStage(key);
+  renderRecipe(key);
+}
+
+/** สถานะที่ควรบอกผู้ใช้ตอนนี้: { tone, title, text } หรือ null */
+function zoneStatus(key) {
+  const state = getZoneState(key);
+  const mode = getMode(key);
+  // FAULT ในโหมดอัตโนมัติ = เซนเซอร์ไม่ตอบ (ระบบกลับมาเองเมื่อเซนเซอร์ปกติ)
+  // FAULT ในโหมดสั่งเอง = วาล์วเปิดนานเกินกำหนด ระบบตัดน้ำให้ (Failsafe)
+  if (state === ZONE_STATE.FAULT && mode === MODE.AUTO) {
+    return { tone: 'warn', title: 'เซนเซอร์ไม่ตอบ หยุดรดอัตโนมัติ', text: 'ตรวจสายเซนเซอร์และไฟเลี้ยง ระบบจะกลับมารดเองเมื่อเซนเซอร์อ่านค่าได้' };
+  }
+  if (state === ZONE_STATE.FAULT && mode === MODE.MANUAL) {
+    return { tone: 'warn', title: 'ระบบตัดน้ำเพื่อความปลอดภัย', text: 'วาล์วเปิดนานเกินกำหนด ตรวจท่อและวาล์ว แล้วเปิดน้ำใหม่ได้' };
+  }
+  if (!isMasterOn()) return null;   // ระบบหลักปิด: มีแจ้งเตือนในทุกการ์ดแล้ว ไม่ต้องซ้ำ
+  if (mode === MODE.AUTO && getStage(key) === STAGE.UNPLANTED) {
+    return { tone: 'warn', title: 'โหมดอัตโนมัติยังไม่รดน้ำ', text: 'แปลงนี้ตั้งไว้ว่า "ยังไม่ได้ปลูก" กด "เริ่มปลูกวันนี้" เพื่อให้ระบบเริ่มดูแล' };
+  }
+  // ใช้สถานะวาล์วเป็นหลัก: บอร์ดส่ง Valve ทันทีที่เปลี่ยน (State บนเฟิร์มแวร์ 2.0.0 อาจช้าได้ถึง ~2 นาที)
+  if (isValveOpen(key)) return { tone: 'info', title: 'กำลังรดน้ำ', text: mode === MODE.AUTO ? 'รดเป็นจังหวะสั้น ๆ เพื่อไม่ให้น้ำขัง' : 'เปิดน้ำด้วยมือ' };
+  if (state === ZONE_STATE.SOAKING) return { tone: 'ok', title: 'พักให้น้ำซึม', text: 'รอน้ำซึมลงดิน แล้วจะวัดความชื้นใหม่' };
+  return null;
+}
+
+function renderZoneBanner(key) {
+  const status = zoneStatus(key);
+  const banner = $('zoneBanner');
+  banner.hidden = !status;
+  if (!status) return;
+  banner.className = 'banner ' + status.tone;
+  $('zoneBannerTitle').textContent = status.title;
+  $('zoneBannerText').textContent = status.text;
+}
+
+function renderSensors(key) {
+  const hum = zoneNum(key, 'hum');
+  const temp = zoneNum(key, 'temp');
+  const pct = hum === null ? 0 : clamp(hum, 0, 100);
+
+  $('hum').textContent = fmt(hum, 0);
+  $('humRing').setAttribute('stroke-dashoffset', String(163.4 * (1 - pct / 100)));
+  $('humHint').textContent = hum === null ? 'ไม่มีข้อมูล' : hum < 35 ? 'ดินแห้ง' : hum <= 75 ? 'ชื้นพอดี' : 'ชื้นมาก';
+  $('temp').textContent = fmt(temp, 1);
+  $('tempHint').textContent = temp === null ? 'ไม่มีข้อมูล' : temp >= 35 ? 'ร้อนมาก' : temp >= 30 ? 'ค่อนข้างร้อน' : temp >= 20 ? 'เหมาะสม' : 'ค่อนข้างเย็น';
+}
+
+function renderValve(key, mode, masterOn) {
+  const open = isValveOpen(key);
+
+  // ระบบหลักปิด: แสดงเป็น "ปิดแปลง" และล็อกปุ่มโหมด — เปลี่ยนแค่หน้าจอ ไม่ส่งคำสั่ง
+  // บอร์ดปิดวาล์วทุกโหมดอยู่แล้ว และจำโหมดจริงไว้ → เปิดระบบหลักแล้วกลับไปโหมดเดิมเอง
+  const shownMode = masterOn ? mode : MODE.OFF;
+  document.querySelectorAll('[data-action="set-mode"]').forEach(b => {
+    const m = Number(b.dataset.mode);
+    b.setAttribute('aria-pressed', String(m === shownMode));
+    b.disabled = !masterOn;
+  });
+
+  $('valvePill').className = 'pill ' + (open ? 'blue' : 'off');
+  $('valvePillText').textContent = open ? 'เปิด' : 'ปิด';
+  $('valveBody').classList.toggle('is-open', open);
+  $('valveTitle').textContent = open ? 'วาล์วเปิดอยู่' : 'วาล์วปิดอยู่';
+  $('valveSub').textContent =
+    !masterOn            ? 'ระบบหลักปิด น้ำไม่ไหลทุกแปลง' :
+    mode === MODE.OFF    ? 'แปลงนี้ไม่รดน้ำ เลือก "สั่งเอง" หรือ "อัตโนมัติ"' :
+    mode === MODE.AUTO   ? 'ระบบเปิด-ปิดน้ำตามความชื้นดินให้เอง' :
+    open                 ? 'แตะเพื่อปิดน้ำ · ระบบปิดเองเมื่อครบเวลาที่ตั้งไว้' :
+                           'แตะเพื่อเปิดน้ำ · ไม่ใช้ 2 ชม. จะกลับเป็นอัตโนมัติ';
+
+  $('valveSwitch').setAttribute('aria-checked', String(open));
+  // ระบบหลักปิด: ซ่อนสวิตช์ ยกเว้นวาล์วยังเปิดค้าง (ให้กดปิดน้ำได้เสมอ)
+  $('valveSwitch').hidden = masterOn ? mode !== MODE.MANUAL : !(open && mode === MODE.MANUAL);
+  $('valveSwitch').disabled = !masterOn && !open;
+  $('masterNoteText').textContent = 'ระบบหลักปิดอยู่ · เปิดสวิตช์ที่หน้าหลักแล้วแปลงนี้จะกลับไปโหมด "' + modeLabel(mode) + '" เอง';
+
+  const mins = toMinutes(zoneNum(key, 'daily'));
+  $('dailyMinutes').textContent = mins === null ? '–' : String(Math.round(mins));
+}
+
+function renderStage(key) {
+  const stage = getStage(key);
+  const planted = stage !== STAGE.UNPLANTED;
+  const dap = zoneNum(key, 'dap');
+  const current = getPreset(key);
+
+  $('stageSubtitle').textContent = planted ? stageLabel(stage) : 'แปลงว่าง';
+  $('stageEmpty').hidden = planted;
+  $('stageInfo').hidden = !planted;
+  if (!planted) return;
+
+  // ผู้ดูแลแตะเลือกระยะเอง · ระยะที่ "ควรเป็นตามวันปลูก" แสดงเป็นขอบเส้นประเพื่อช่วยตัดสินใจ
+  // แถบระยะแสดงเสมอ · โหมด "คงที่" ยังเลือกระยะได้ (บันทึกไว้) แต่เกณฑ์รดน้ำไม่เปลี่ยนตามระยะ
+  const constantMode = current && !current.preset.useStages;
+  const dapDays = dap === null ? null : Math.round(dap);
+  const suggested = suggestedStage(current && current.preset, dapDays);
+  $('steps').hidden = false;
+  $('stepsHint').textContent =
+    constantMode            ? 'แตะเลือกระยะตามที่เห็นจริง · สูตรนี้ใช้เกณฑ์ความชื้นคงที่ ถ้าอยากให้เกณฑ์เปลี่ยนตามระยะ ให้เปลี่ยนสูตรเป็น "ปรับตามระยะพืช"' :
+    suggested && suggested !== stage
+                            ? 'ปลูกมา ' + dapDays + ' วัน ตามกำหนดควรเป็น "' + STAGES[suggested - 1].name + '" (ขอบเส้นประ) · แตะเลือกตามที่เห็นจริง'
+                            : 'แตะเลือกระยะตามที่เห็นจริงในแปลง';
+
+  const ends = current ? endDaps(current.preset) : null;
+  document.querySelectorAll('#steps .step').forEach(el => {
+    const s = Number(el.dataset.stage);
+    el.classList.toggle('done', s < stage);
+    el.classList.toggle('current', s === stage);
+    el.classList.toggle('suggested', s === suggested);
+    el.setAttribute('aria-pressed', String(s === stage));
+    el.querySelector('small').textContent = ends ? (s === 1 ? 0 : ends[s - 2] + 1) + '–' + ends[s - 1] + ' วัน' : '';
+  });
+  $('stepBar').style.width = ((stage - 1) * 25) + '%';
+
+  $('days').textContent = dap === null ? '–' : String(Math.round(dap));
+  $('plantDate').textContent = dap === null ? 'นับจากวันเริ่มปลูก'
+    : 'เริ่ม ' + new Date(Date.now() - Math.round(dap) * DAY_MS).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+
+  const next = nextStageInfo(key, stage, dap);
+  $('nextTitle').textContent = next.title;
+  $('nextValue').textContent = next.value;
+  $('nextUnit').textContent = next.unit;
+  $('nextSub').textContent = next.sub;
+}
+
+function renderRecipe(key) {
+  const current = getPreset(key);
+  const box = $('recipe');
+  box.textContent = '';
+
+  if (!current) {
+    box.appendChild(makeBanner('info', 'ยังไม่ได้ตั้งสูตรจากแอปนี้', 'แตะปุ่มด้านล่าง ตอบ 3 ข้อ ระบบจะคำนวณให้เอง'));
+    $('recipeSource').hidden = true;
+    $('recipeBtnText').textContent = 'ตั้งสูตรการรดน้ำ';
+    return;
+  }
+
+  const { preset, source } = current;
+  const crop = CROPS[preset.crop], soil = soilById(preset.soil), plan = planById(preset.useStages);
+  box.appendChild(makeRecipeRow(crop.emo, 'พืช', crop.name));
+  box.appendChild(makeRecipeRow(soil.emo, 'ดิน', soil.name));
+  box.appendChild(makeRecipeRow(plan.emo, 'รูปแบบการรด', plan.name));
+
+  $('recipeSource').hidden = source === 'device';
+  $('recipeSource').textContent = 'สูตรที่บันทึกล่าสุดจากเครื่องนี้ (เพิ่ม datastream Preset ให้วิดเจ็ตเพื่ออ่านค่าจากบอร์ดโดยตรง)';
+  $('recipeBtnText').textContent = 'เปลี่ยนสูตร';
+}
+
+/* ---------- ชิ้นส่วน UI เล็ก ๆ ---------- */
+function makeBanner(tone, title, text) {
+  const div = document.createElement('div');
+  div.className = 'banner ' + tone;
+  div.innerHTML = '<svg class="i"><use href="#ic-alert"/></svg><div><b></b><span></span></div>';
+  div.querySelector('b').textContent = title;
+  div.querySelector('span').textContent = text;
+  return div;
+}
+function makeRecipeRow(emo, label, value) {
+  const row = document.createElement('div');
+  row.className = 'recipe-row';
+  row.innerHTML = '<span class="emo"></span><div><small></small><b></b></div>';
+  row.querySelector('.emo').textContent = emo;
+  row.querySelector('small').textContent = label;
+  row.querySelector('b').textContent = value;
+  return row;
+}
+
+/* =====================================================================
+   9) กราฟ (SVG ไม่ต้องใช้ไลบรารี)
+   ===================================================================== */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(name, attrs, text) {
+  const e = document.createElementNS(SVG_NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+// เส้นโค้งนุ่ม (Catmull-Rom → Bezier)
+function smoothPath(p) {
+  let d = 'M' + p[0][0].toFixed(1) + ' ' + p[0][1].toFixed(1);
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ' C' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ' ' + c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ' ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+  }
+  return d;
+}
+function chartTicks(from, to) {
+  const ticks = [];
+  if (ui.rangeDays === 1) {
+    const d = new Date(from); d.setMinutes(0, 0, 0);
+    d.setHours(Math.ceil(d.getHours() / 6) * 6);
+    for (let t = d.getTime(); t <= to; t += 6 * 3600 * 1000) ticks.push([t, String(new Date(t).getHours()).padStart(2, '0') + ':00']);
+  } else {
+    const d = new Date(from); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1);
+    for (let t = d.getTime(); t <= to; t += DAY_MS) { const dd = new Date(t); ticks.push([t, dd.getDate() + '/' + (dd.getMonth() + 1)]); }
+  }
+  return ticks;
+}
+function drawChart(svg, points, color, gradId) {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const W = 340, H = 170, L = 28, R = 10, T = 10, B = 24;
+  const to = Date.now(), from = to - ui.rangeDays * DAY_MS;
+  const x = t => L + (t - from) / (to - from) * (W - L - R);
+  const y = v => T + (1 - v / 100) * (H - T - B);
+
+  const defs = svgEl('defs', {});
+  const grad = svgEl('linearGradient', { id: gradId, x1: 0, y1: 0, x2: 0, y2: 1 });
+  grad.appendChild(svgEl('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': 0.28 }));
+  grad.appendChild(svgEl('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': 0 }));
+  defs.appendChild(grad);
+  svg.appendChild(defs);
+
+  [0, 25, 50, 75, 100].forEach(v => {
+    svg.appendChild(svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: '#EDF2F0', 'stroke-width': 1, 'stroke-dasharray': v === 0 ? '' : '3 4' }));
+    svg.appendChild(svgEl('text', { x: L - 6, y: y(v) + 3, 'text-anchor': 'end' }, String(v)));
+  });
+  chartTicks(from, to).forEach(([t, label]) => {
+    svg.appendChild(svgEl('text', { x: x(t), y: H - 6, 'text-anchor': 'middle' }, label));
+  });
+
+  const pts = points.filter(p => p.x >= from && p.x <= to && Number.isFinite(p.y)).sort((a, b) => a.x - b.x);
+  if (pts.length < 2) {
+    svg.appendChild(svgEl('text', { x: (W + L) / 2, y: H / 2, 'text-anchor': 'middle', style: 'font-size:12px' }, 'ยังไม่มีข้อมูลในช่วงนี้'));
+    return;
+  }
+  const xy = pts.map(p => [x(p.x), y(clamp(p.y, 0, 100))]);
+  const line = smoothPath(xy);
+  const area = line + ' L' + xy[xy.length - 1][0].toFixed(1) + ' ' + y(0) + ' L' + xy[0][0].toFixed(1) + ' ' + y(0) + ' Z';
+  svg.appendChild(svgEl('path', { d: area, fill: 'url(#' + gradId + ')' }));
+  svg.appendChild(svgEl('path', { d: line, fill: 'none', stroke: color, 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  const last = xy[xy.length - 1];
+  svg.appendChild(svgEl('circle', { cx: last[0], cy: last[1], r: 8, fill: color, 'fill-opacity': 0.18 }));
+  svg.appendChild(svgEl('circle', { cx: last[0], cy: last[1], r: 4, fill: '#FFFFFF', stroke: color, 'stroke-width': 2.4 }));
+}
+
+function loadHistory() {
+  if (typeof bridge.getHistoricalData !== 'function') return;
+  const streams = [];
+  const zoneByIndex = {};
+  ZONE_KEYS.forEach(key => {
+    const index = store.indexOf[ZONES[key].ds.hum];
+    if (index === undefined) return;
+    streams.push({ index: index, sourceType: 'AVG' });
+    zoneByIndex[index] = key;
+  });
+  if (!streams.length) return;
+
+  const to = Date.now(), from = to - ui.rangeDays * DAY_MS;
+  bridge.getHistoricalData({ period: 'CUSTOM', from: from, to: to, dataStreams: streams })
+    .then(res => {
+      ((res && res.streams) || []).forEach(s => {
+        const key = zoneByIndex[s.index];
+        if (key) store.history[key] = (s.values || []).map(p => ({ x: Number(p.x), y: parseFloat(p.y) }));
+      });
+      log('history', 'โหลดกราฟ ' + ui.rangeDays + ' วัน', { streams: streams.length });
+      render();
+    })
+    .catch(e => { log('warn', 'โหลดกราฟไม่สำเร็จ', String(e && e.message || e)); render(); });
+}
+
+/* =====================================================================
+   10) SHEETS / TOAST
+   ===================================================================== */
+/** แสดงกล่องยืนยัน คืนค่า Promise<boolean> */
+function askConfirm(opt) {
+  if (ui.confirmResolve) closeConfirm(false);          // มีกล่องค้างอยู่ → ถือว่ายกเลิกอันเก่า
+  $('confirmTitle').textContent = opt.title;
+  $('confirmText').textContent = opt.text || '';
+  $('confirmOk').textContent = opt.ok || 'ยืนยัน';
+  $('confirmOk').className = 'btn ' + (opt.tone === 'warn' ? 'warn' : 'primary');
+  $('confirmSheet').hidden = false;
+  return new Promise(resolve => { ui.confirmResolve = resolve; });
+}
+function closeConfirm(answer) {
+  $('confirmSheet').hidden = true;
+  const resolve = ui.confirmResolve;
+  ui.confirmResolve = null;
+  if (resolve) resolve(answer);
+}
+
+function openPresetSheet(key) {
+  const current = getPreset(key);
+  ui.presetZone = key;
+  ui.presetDraft = Object.assign({}, current ? current.preset : DEFAULT_PRESET);
+  $('presetTitle').textContent = 'ตั้งสูตรการรดน้ำ · ' + ZONES[key].label;
+  renderPresetSheet();
+  $('presetSheet').hidden = false;
+}
+function closePresetSheet() {
+  $('presetSheet').hidden = true;
+  ui.presetZone = null;
+  ui.presetDraft = null;
+}
+
+function renderPresetSheet() {
+  const draft = ui.presetDraft;
+  document.querySelectorAll('#presetSheet .choice').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(draft[btn.dataset.field] === Number(btn.dataset.value)));
+  });
+
+  const crop = CROPS[draft.crop], soil = soilById(draft.soil);
+  const values = recipeValues(draft);
+  const box = $('presetSummary');
+  box.textContent = '';
+  const addLine = (tag, text) => { const el = document.createElement(tag); el.textContent = text; box.appendChild(el); };
+
+  addLine('strong', crop.emo + ' ' + crop.name + ' · ' + soil.emo + ' ' + soil.name);
+
+  if (draft.useStages) {
+    const grid = document.createElement('div');
+    grid.className = 'ranges';
+    values.stages.forEach((s, i) => {
+      const cell = document.createElement('span');
+      cell.innerHTML = 'ระยะ ' + (i + 1) + '<b></b><i></i>';
+      cell.querySelector('b').textContent = s.low + '–' + s.high + '%';
+      cell.querySelector('i').textContent = 'ถึงวันที่ ' + s.endDap;
+      grid.appendChild(cell);
+    });
+    box.appendChild(grid);
+    const pulses = values.stages.map(s => s.pulse), soaks = values.stages.map(s => s.soak), maxes = values.stages.map(s => s.maxDaily);
+    addLine('div', '💧 รดครั้งละ ' + span(pulses) + ' นาที · พักให้ซึม ' + span(soaks) + ' นาที');
+    addLine('div', '⏱️ รดรวมไม่เกิน ' + span(maxes) + ' นาที/วัน (ตามระยะ)');
+  } else {
+    const c = values.constant;
+    addLine('div', 'รดเมื่อความชื้นต่ำกว่า ' + c.low + '% · หยุดที่ ' + c.high + '% ตลอดฤดู');
+    addLine('div', '💧 รดครั้งละ ' + c.pulse + ' นาที · พักให้ซึม ' + c.soak + ' นาที');
+    addLine('div', '⏱️ รดรวมไม่เกิน ' + c.maxDaily + ' นาที/วัน');
+  }
+
+  if (ui.presetZone && getStage(ui.presetZone) === STAGE.UNPLANTED) {
+    addLine('small', '🌱 แปลงนี้ยังไม่ได้ปลูก บันทึกแล้วจะเริ่มนับวันปลูกเป็นวันนี้');
+  }
+}
+/** [2,3,2] → "2–3", [8,8] → "8" */
+function span(list) {
+  const lo = Math.min.apply(null, list), hi = Math.max.apply(null, list);
+  return lo === hi ? String(lo) : lo + '–' + hi;
+}
+
+function showToast(message) {
+  const t = $('toast');
+  t.textContent = message;
+  t.hidden = false;
+  clearTimeout(ui.toastTimer);
+  ui.toastTimer = setTimeout(() => { t.hidden = true; }, CONFIG.TOAST_MS);
+}
+
+/* =====================================================================
+   11) DEBUG CARD
+   ===================================================================== */
+function renderDebug() {
+  $('debugBridge').textContent = (hasBridge ? 'BlynkBridge' : 'Stub (จำลอง)') + ' · ' + new Date().toLocaleTimeString('th-TH');
+  const body = $('debugTable');
+  body.textContent = '';
+  ALL_NAMES.forEach(name => {
+    const tr = document.createElement('tr');
+    const index = store.indexOf[name];
+    const cells = [
+      name + (DATASTREAMS[name].optional ? ' *' : ''),
+      DATASTREAMS[name].pin,
+      index === undefined ? (DATASTREAMS[name].optional ? '–' : 'ไม่พบ') : String(index),
+      store.values[name] === undefined ? '–' : String(store.values[name])
+    ];
+    cells.forEach((text, i) => {
+      const td = document.createElement('td');
+      td.textContent = text;
+      if (i === 2 && text === 'ไม่พบ') td.className = 'miss';
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+  $('debugLog').textContent = logLines.slice().reverse().join('\n');
+}
+
+function debugReport() {
+  const rows = ALL_NAMES.map(n => n + ' ' + DATASTREAMS[n].pin + ' idx=' + store.indexOf[n] + ' val=' + store.values[n]);
+  return rows.join('\n') + '\n---\n' + logLines.join('\n');
+}
+
+// แตะโลโก้ 5 ครั้งภายใน 3 วินาที เพื่อเปิด/ปิดการ์ด Debug
+let logoTaps = [];
+function onLogoTap() {
+  const now = Date.now();
+  logoTaps = logoTaps.filter(t => now - t < 3000).concat(now);
+  if (logoTaps.length < 5) return;
+  logoTaps = [];
+  ui.debugVisible = !ui.debugVisible;
+  showToast(ui.debugVisible ? 'เปิดโหมด Debug' : 'ปิดโหมด Debug');
+  goTab('main');
+}
+
+/* =====================================================================
+   12) EVENTS — ปุ่มทุกปุ่มใช้ data-action แล้วมาจับคู่ที่ตารางนี้ที่เดียว
+   ===================================================================== */
+function goTab(tab) {
+  ui.tab = tab;
+  render();
+  window.scrollTo(0, 0);
+}
+
+// handler(btn, zoneKey) — zoneKey = แปลงที่เปิดอยู่ (null ถ้าอยู่หน้าหลัก)
+const ACTION_HANDLERS = {
+  'go':             (btn) => goTab(btn.dataset.tab),
+  'range':          (btn) => { ui.rangeDays = Number(btn.dataset.range); render(); loadHistory(); },
+  'toggle-master':  () => Actions.toggleMaster(),
+  'set-mode':       (btn, key) => key && Actions.setMode(key, Number(btn.dataset.mode)),
+  'toggle-valve':   (btn, key) => key && Actions.toggleValve(key),
+  'set-stage':      (btn, key) => key && Actions.setStage(key, Number(btn.dataset.stage)),
+  'start-planting': (btn, key) => key && Actions.startPlanting(key),
+  'unplant':        (btn, key) => key && Actions.unplant(key),
+  'reset-runtime':  (btn, key) => key && Actions.resetRuntime(key),
+  'open-preset':    (btn, key) => key && openPresetSheet(key),
+  'close-preset':   () => closePresetSheet(),
+  'pick':           (btn) => { ui.presetDraft[btn.dataset.field] = Number(btn.dataset.value); renderPresetSheet(); },
+  'save-preset':    () => { const key = ui.presetZone, draft = ui.presetDraft; closePresetSheet(); if (key) Actions.savePreset(key, draft); },
+  'confirm-yes':    () => closeConfirm(true),
+  'confirm-no':     () => closeConfirm(false),
+  'debug-copy':     () => {
+    const text = debugReport();
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast('คัดลอกแล้ว'), () => showToast('คัดลอกไม่ได้'));
+    else showToast('เบราว์เซอร์นี้คัดลอกไม่ได้');
+  }
+};
+const QUIET_ACTIONS = { 'pick': true, 'go': true };   // ไม่ต้อง log ทุกครั้ง
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn || btn.disabled) return;
+  const name = btn.dataset.action;
+  const handler = ACTION_HANDLERS[name];
+  if (!handler) { log('warn', 'ไม่รู้จัก action: ' + name); return; }
+  if (!QUIET_ACTIONS[name]) log('action', name, { zone: currentZone() });
+  handler(btn, currentZone());
+});
+
+// แตะพื้นหลังมืดเพื่อปิด sheet
+$('confirmSheet').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeConfirm(false); });
+$('presetSheet').addEventListener('click', (e) => { if (e.target === e.currentTarget) closePresetSheet(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!$('confirmSheet').hidden) closeConfirm(false);
+  else if (!$('presetSheet').hidden) closePresetSheet();
+});
+$('logo').addEventListener('click', onLogoTap);
+
+/* ---------- สร้างปุ่มจากตารางข้อมูล (แก้ข้อมูลที่ตารางด้านบนที่เดียว) ---------- */
+// ปุ่มเลือกระยะ — ผู้ดูแลแตะเลือกเอง
+function buildStageSteps() {
+  const wrap = $('steps');
+  STAGES.forEach(s => {
+    const el = document.createElement('button');
+    el.className = 'step';
+    el.dataset.action = 'set-stage';
+    el.dataset.stage = String(s.n);
+    el.setAttribute('aria-label', 'เลือกระยะที่ ' + s.n + ' ' + s.name);
+    el.innerHTML = '<div class="step-ico"><svg class="i"><use href="#' + s.icon + '"/></svg></div><span></span><small></small>';
+    el.querySelector('span').textContent = s.name;
+    wrap.appendChild(el);
+  });
+}
+function buildPresetChoices() {
+  const groups = { crop: CROPS, soil: SOILS, useStages: PLANS };
+  Object.keys(groups).forEach(field => {
+    const wrap = document.querySelector('#presetSheet .choices[data-field="' + field + '"]');
+    groups[field].forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'choice';
+      btn.dataset.action = 'pick';
+      btn.dataset.field = field;
+      btn.dataset.value = String(item.id);
+      btn.innerHTML = '<span class="emo"></span><div><b></b><small></small></div>';
+      btn.querySelector('.emo').textContent = item.emo;
+      btn.querySelector('b').textContent = item.name;
+      btn.querySelector('small').textContent = item.hint;
+      wrap.appendChild(btn);
+    });
+  });
+}
+
+/* =====================================================================
+   13) CONNECT — จับคู่ index ของวิดเจ็ตกับชื่อ datastream แล้วรับค่า
+   ===================================================================== */
+function matchName(v) {
+  for (const key of ['label', 'displayName', 'name']) {
+    const s = String(v[key] || '').trim().toUpperCase();
+    if (!s) continue;
+    const hit = ALL_NAMES.find(n => n.toUpperCase() === s);
+    if (hit) return hit;
+  }
+  return null;
+}
+function link(name, index) {
+  if (store.indexOf[name] !== undefined && store.indexOf[name] !== index) delete store.nameOf[store.indexOf[name]];
+  store.indexOf[name] = index;
+  store.nameOf[index] = name;
+  if (store.pending[index]) {
+    const p = store.pending[index];
+    delete store.pending[index];
+    receive(p);
+  }
+}
+
+/**
+ * Stage_* ใช้รับ "รหัสคำสั่ง" ด้วย (98, 99, 100..139) ค่าที่เกิน 0..4 จึงไม่ใช่ระยะจริง → ข้าม
+ * (Blynk อาจส่งค่าที่วิดเจ็ตเพิ่งส่งไปกลับมา ก่อนบอร์ดจะส่งระยะจริงตามมา)
+ */
+function isCommandEcho(name, value) {
+  if (name.indexOf('Stage_') !== 0) return false;
+  const n = parseFloat(value);
+  return !Number.isFinite(n) || n < STAGE.UNPLANTED || n > STAGE.LAST;
+}
+
+function receive(v) {
+  if (!v || typeof v.index !== 'number') return;
+  let name = store.nameOf[v.index];
+  if (!name) {
+    name = matchName(v);
+    if (name) link(name, v.index);
+  }
+  if (!name) { store.pending[v.index] = v; return; }
+  if (store.ignoreOnce[name] !== undefined && String(v.value) === store.ignoreOnce[name]) {
+    delete store.ignoreOnce[name];
+    log('skip', name + ' = ' + v.value + ' (รหัสคำสั่งที่เพิ่งส่ง รอค่าจริงจากบอร์ด)');
+    return;
+  }
+  if (isCommandEcho(name, v.value)) { log('skip', name + ' = ' + v.value + ' (รหัสคำสั่ง ไม่ใช่ระยะ)'); return; }
+
+  store.values[name] = v.value;
+  if (v.lastUpdated && (!store.lastUpdate || v.lastUpdated > store.lastUpdate)) store.lastUpdate = v.lastUpdated;
+
+  const n = parseFloat(v.value);
+  if (Number.isFinite(n)) {
+    ZONE_KEYS.forEach(key => {
+      if (name === ZONES[key].ds.hum) store.history[key].push({ x: v.lastUpdated || Date.now(), y: n });
+    });
+  }
+}
+
+function lookup(selector) {
+  try { return Promise.resolve(bridge.getValue(selector)); }
+  catch (e) { return Promise.reject(e); }
+}
+/** หา index ของทุก datastream จาก V pin (สำรองด้วยชื่อ) */
+function resolveAll() {
+  if (typeof bridge.getValue !== 'function') return Promise.resolve();
+  return Promise.all(ALL_NAMES.map(name =>
+    lookup({ pin: DATASTREAMS[name].pin })
+      .catch(() => lookup({ name: name }))
+      .then(v => {
+        if (v && typeof v.index === 'number' && v.index >= 0) { link(name, v.index); receive(v); }
+      })
+      .catch(() => { if (!DATASTREAMS[name].optional) log('warn', 'ไม่พบ datastream ' + name + ' (' + DATASTREAMS[name].pin + ') ในวิดเจ็ต'); })
+  ));
+}
+
+/* =====================================================================
+   14) BOOT
+   ===================================================================== */
+buildStageSteps();
+buildPresetChoices();
+
+bridge.setCallbacks({
+  onValueUpdated: (v) => {
+    receive(v);
+    if (CONFIG.DEBUG) log('recv', (store.nameOf[v.index] || ('#' + v.index)) + ' = ' + v.value);
+    render();
+  },
+  onError: (e) => log('warn', 'Blynk error', e)
+});
+
+bridge.getValues()
+  .then(list => { (list || []).forEach(v => v && receive(v)); })
+  .catch(e => log('warn', 'getValues ล้มเหลว', String(e && e.message || e)))
+  .then(resolveAll)
+  .then(() => {
+    log('boot', 'พร้อมใช้งาน', { found: Object.keys(store.indexOf).length, total: ALL_NAMES.length, bridge: hasBridge ? 'blynk' : 'stub' });
+    render();
+    loadHistory();
+  });
+
+setInterval(loadHistory, CONFIG.HISTORY_REFRESH_MS);
+render();
+
+// เปิดให้ตรวจสอบจาก DevTools Console: พิมพ์ SmartFarm
+window.SmartFarm = { store: store, ui: ui, Actions: Actions, debugReport: debugReport, CONFIG: CONFIG };
+</script>
+</body>
+</html>
